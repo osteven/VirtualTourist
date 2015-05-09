@@ -7,10 +7,17 @@
 //
 
 import UIKit
+import MapKit
 
-let reuseIdentifier = "PhotoCell"
+let reuseIdentifier = "PhotoAlbumCell"
 
-class PhotoAlbumViewController: UICollectionViewController {
+class PhotoAlbumViewController: UIViewController {
+
+
+    var currentPin: Pin? = nil
+    @IBOutlet weak var mapView: MKMapView!
+    @IBOutlet weak var collectionView: UICollectionView!
+
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -24,7 +31,25 @@ class PhotoAlbumViewController: UICollectionViewController {
         // Register cell classes
         self.collectionView!.registerClass(UICollectionViewCell.self, forCellWithReuseIdentifier: reuseIdentifier)
 
-        // Do any additional setup after loading the view.
+
+
+    }
+
+
+    override func viewDidAppear(animated: Bool) {
+        super.viewDidAppear(animated)
+
+        if let pin = currentPin {
+            let pointAnnotation = PinLinkAnnotation(pinRef: pin)
+            pointAnnotation.coordinate = pin.locationCoordinate
+            pointAnnotation.title = pin.locationName
+            pointAnnotation.subtitle = ""
+            mapView.addAnnotation(pointAnnotation)
+            let span = MKCoordinateSpan(latitudeDelta: 0.001, longitudeDelta: 0.001)
+            let region = MKCoordinateRegion(center: pin.locationCoordinate, span: span)
+            self.mapView.centerCoordinate = pin.locationCoordinate
+            self.mapView.setRegion(region, animated: true)
+        }
     }
 
     /*
@@ -39,18 +64,18 @@ class PhotoAlbumViewController: UICollectionViewController {
 
     // MARK: UICollectionViewDataSource
 
-    override func numberOfSectionsInCollectionView(collectionView: UICollectionView) -> Int {
+    func numberOfSectionsInCollectionView(collectionView: UICollectionView) -> Int {
         //#warning Incomplete method implementation -- Return the number of sections
         return 0
     }
 
 
-    override func collectionView(collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+    func collectionView(collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
         //#warning Incomplete method implementation -- Return the number of items in the section
         return 0
     }
 
-    override func collectionView(collectionView: UICollectionView, cellForItemAtIndexPath indexPath: NSIndexPath) -> UICollectionViewCell {
+    func collectionView(collectionView: UICollectionView, cellForItemAtIndexPath indexPath: NSIndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCellWithReuseIdentifier(reuseIdentifier, forIndexPath: indexPath) as! UICollectionViewCell
     
         // Configure the cell

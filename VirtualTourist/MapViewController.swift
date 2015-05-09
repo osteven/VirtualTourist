@@ -91,7 +91,7 @@ class MapViewController: UIViewController, MKMapViewDelegate {
             loadPinCounter++
             println("loadPins: #\(loadPinCounter)")
             if loadPinCounter >= 200 { println("failed to loadPins"); return }
-            dispatch_time(DISPATCH_TIME_NOW, Int64(0.12 * Double(NSEC_PER_SEC)));
+            dispatch_time(DISPATCH_TIME_NOW, Int64(0.5 * Double(NSEC_PER_SEC)));
             dispatch_async(dispatch_get_main_queue(), { self.loadPins() })
            return
         }
@@ -172,12 +172,17 @@ class MapViewController: UIViewController, MKMapViewDelegate {
 
     func mapView(mapView: MKMapView!, annotationView: MKAnnotationView, calloutAccessoryControlTapped control: UIControl) {
         if control == annotationView.rightCalloutAccessoryView {
-            println("tap \(annotationView.annotation.title)")
+            //          println("tap \(annotationView.annotation.title)")
+
+
 
             let controller = self.storyboard?.instantiateViewControllerWithIdentifier("PhotoAlbumViewController") as! PhotoAlbumViewController
-            let nav = self.navigationController
-            if nav == nil { println("nil") }
-            //     controller.currentMeme = memeManager.memeAtIndex(indexPath.row)
+//            let nav = self.navigationController
+//            if nav == nil { println("nil") }
+
+            println("mvc=\(mapView.centerCoordinate.latitude), \(mapView.centerCoordinate.longitude); \( mapView.region.span.latitudeDelta), \( mapView.region.span.longitudeDelta)")
+
+            controller.currentPin = (annotationView.annotation as! PinLinkAnnotation).pinRef
             self.navigationController?.pushViewController(controller, animated: true)
 
 
