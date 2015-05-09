@@ -33,7 +33,7 @@ class PersistenceManager {
 
     static let sharedInstance = PersistenceManager()
 
-
+    var isLoaded = false
     let managedObjectContext: NSManagedObjectContext
     private let privateManagedObjectContext: NSManagedObjectContext
 
@@ -70,6 +70,7 @@ class PersistenceManager {
     func initializeCoreData(baseName: String, initCallback: InitCallBack?) -> Void {
         let url = self.applicationDocumentsDirectory.URLByAppendingPathComponent("\(baseName).sqlite")
         println("sqlite path: \(url.path!)")
+        println("initializeCoreData thread:\(NSThread.currentThread().description)")
 
         let options: [NSObject: AnyObject] = [
             NSMigratePersistentStoresAutomaticallyOption: true,
@@ -78,12 +79,14 @@ class PersistenceManager {
 
         let coordinator = NSPersistentStoreCoordinator(managedObjectModel: getManagedObjectModel(baseName))
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), {
+            println("initializeCoreData BG thread:\(NSThread.currentThread().description)")
             var error: NSError? = nil
             if coordinator.addPersistentStoreWithType(NSSQLiteStoreType, configuration: nil,
                 URL: url, options: options, error: &error) == nil {
                 error = self.errorWithFailedPersistentStore(error!)
             } else {
                 self.privateManagedObjectContext.persistentStoreCoordinator = coordinator
+                self.isLoaded = true
             }
             if initCallback != nil {
                 dispatch_sync(dispatch_get_main_queue(), { initCallback!(error: error) })
@@ -110,6 +113,25 @@ class PersistenceManager {
 
 
     // MARK: - save
-
+    // TODO: add save closure
+    func save() {
+        if !self.managedObjectContext.hasChanges && !self.privateManagedObjectContext.hasChanges {
+            println("no changes to save")
+            return
+        }
+        var error: NSError? = nil
+        if !self.managedObjectContext.save(&error) {
+            NSLog("Unresolved error \(error), \(error!.userInfo)")
+            abort()
+        }
+        self.privateManagedObjectContext.performBlock {
+            var privateError: NSError? = nil
+            self.privateManagedObjectContext.save(&privateError)
+            if privateError != nil {
+                NSLog("Unresolved private error \(privateError), \(privateError!.userInfo)")
+                abort()
+            }
+        }
+    }
 
 }

@@ -8,6 +8,7 @@
 
 import UIKit
 import MapKit
+import CoreData
 
 class MapViewController: UIViewController, MKMapViewDelegate {
 
@@ -23,22 +24,36 @@ class MapViewController: UIViewController, MKMapViewDelegate {
         return url.URLByAppendingPathComponent("mapRegionArchive").path!
     }
 
-
+    var sharedContext: NSManagedObjectContext {
+        //        return CoreDataStackManager.sharedInstance.managedObjectContext!
+        return PersistenceManager.sharedInstance.managedObjectContext
+    }
+    private var loadPinCounter = 0
+    private var savedMapRegionAtStartup: MKCoordinateRegion?
 
     // MARK: - Life Cycle
+
+    required init(coder aDecoder: NSCoder) {
+        super.init(coder: aDecoder)
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
+        // have to capture this at startup, because loading map pins overwrites it
+        savedMapRegionAtStartup = getSavedMapRegion()
+
         longPressGesture.addTarget(self, action: "handleLongPress:")
         mapView.addGestureRecognizer(longPressGesture)
-        let mapRegion = getSavedMapRegion()
-        dispatch_async(dispatch_get_main_queue(), { self.mapView.setRegion(mapRegion, animated: true) })
+        dispatch_async(dispatch_get_main_queue(), { self.loadPins() })
+        dispatch_async(dispatch_get_main_queue(), { self.mapView.setRegion(self.savedMapRegionAtStartup!, animated: true) })
     }
 
 
     override func viewWillAppear(animated: Bool) {
         super.viewWillAppear(animated)
         navigationController?.navigationBarHidden = true
+        //      let savedMapRegionAtStartup = getSavedMapRegion()
     }
 
     func saveMapRegion() {
@@ -71,6 +86,31 @@ class MapViewController: UIViewController, MKMapViewDelegate {
     }
 
 
+    private func loadPins() {
+        if !PersistenceManager.sharedInstance.isLoaded {
+            loadPinCounter++
+            println("loadPins: #\(loadPinCounter)")
+            if loadPinCounter >= 200 { println("failed to loadPins"); return }
+            dispatch_time(DISPATCH_TIME_NOW, Int64(0.12 * Double(NSEC_PER_SEC)));
+            dispatch_async(dispatch_get_main_queue(), { self.loadPins() })
+           return
+        }
+        let error: NSErrorPointer = nil
+        let fetchRequest = NSFetchRequest(entityName: "Pin")
+        let results = sharedContext.executeFetchRequest(fetchRequest, error: error)
+        println("loadPins: \(results)")
+        if error != nil {
+            println("Error in loadPins(): \(error)")
+            return
+        }
+        for pin in results as! [Pin] {
+            let pointAnnotation = PinLinkAnnotation(pinRef: pin)
+            pointAnnotation.coordinate = pin.locationCoordinate
+            pointAnnotation.title = pin.locationName
+            pointAnnotation.subtitle = "tap to see photos"
+            mapView.addAnnotation(pointAnnotation)
+        }
+    }
 
     // MARK: - Map support
 
@@ -79,15 +119,23 @@ class MapViewController: UIViewController, MKMapViewDelegate {
         if gestureRecognizer.state == UIGestureRecognizerState.Ended {
             let touchPoint = gestureRecognizer.locationInView(gestureRecognizer.view!)
             let touchMapCoordinate = mapView.convertPoint(touchPoint, toCoordinateFromView:mapView)
-            println("press \(touchPoint) :: \(touchMapCoordinate.latitude), \(touchMapCoordinate.longitude)")
-            let pointAnnotation = MKPointAnnotation()
+
+            println("handleLongPress thread:\(NSThread.currentThread().description)")
+            let temporaryTitle = "\(touchMapCoordinate.latitude), \(touchMapCoordinate.longitude)"
+            let dictionary: [String: AnyObject] = [Pin.Keys.Latitude: touchMapCoordinate.latitude,
+                Pin.Keys.Longitude: touchMapCoordinate.longitude, Pin.Keys.LocationName: temporaryTitle]
+            let pin = Pin(dictionary: dictionary, context: sharedContext)
+
+            let pointAnnotation = PinLinkAnnotation(pinRef: pin)
+            println("PinLinkAnnotation created:\(pointAnnotation.description)")
+            //   let pointAnnotation = MKPointAnnotation()
             pointAnnotation.coordinate = touchMapCoordinate;
-            pointAnnotation.title = "\(touchMapCoordinate.latitude), \(touchMapCoordinate.longitude)"
+            pointAnnotation.title = temporaryTitle
             pointAnnotation.subtitle = "tap to see photos"
             mapView.addAnnotation(pointAnnotation)
+            PersistenceManager.sharedInstance.save()
             reverseGeocode(pointAnnotation)
         }
-
     }
 
     func mapView(mapView: MKMapView!, viewForAnnotation annotation: MKAnnotation!) -> MKAnnotationView! {
@@ -116,7 +164,7 @@ class MapViewController: UIViewController, MKMapViewDelegate {
         if newState == .Ending {
 //            let droppedAt = view.annotation.coordinate
 //            println("drop \(droppedAt.latitude), \(droppedAt.longitude)")
-            reverseGeocode(view.annotation as! MKPointAnnotation)
+            reverseGeocode(view.annotation as! PinLinkAnnotation)
 
         }
     }
@@ -141,10 +189,12 @@ class MapViewController: UIViewController, MKMapViewDelegate {
     }
 
 
-    private func reverseGeocode(annotation: MKPointAnnotation) {
+    private func reverseGeocode(annotation: PinLinkAnnotation) {
+        println("reverseGeocode1 thread:\(NSThread.currentThread().description)")
         UIApplication.sharedApplication().networkActivityIndicatorVisible = true
         let location = CLLocation(latitude: annotation.coordinate.latitude, longitude: annotation.coordinate.longitude)
         geoCoder.reverseGeocodeLocation(location, completionHandler: {(placemarks, error) in
+            println("reverseGeocode2 thread:\(NSThread.currentThread().description)")
             UIApplication.sharedApplication().networkActivityIndicatorVisible = false
             if error != nil  { /* do nothing, leave the latitude and logitude there */ return }
 
@@ -155,6 +205,11 @@ class MapViewController: UIViewController, MKMapViewDelegate {
             let formattedAddressLines = placeMark.addressDictionary["FormattedAddressLines"] as? NSArray
 
             if let addressStr = formattedAddressLines?.componentsJoinedByString(" ") {
+                println("got PinLinkAnnotation:\(annotation)")
+
+                println("updating pin addressStr:\(addressStr)")
+                annotation.pinRef.locationName = addressStr
+                PersistenceManager.sharedInstance.save()
                 dispatch_async(dispatch_get_main_queue(), { annotation.title = addressStr })
             }
         })
@@ -164,21 +219,6 @@ class MapViewController: UIViewController, MKMapViewDelegate {
 
 
 
-
-/*
-
-[SubAdministrativeArea: Grady, 
-State: OK, 
-CountryCode: US, 
-ZIP: 73010, 
-Country: United States, 
-Name: 73010, 
-FormattedAddressLines: (
-"Blanchard, OK  73010",
-"United States"
-), 
-City: Blanchard]
-*/
 
 
 

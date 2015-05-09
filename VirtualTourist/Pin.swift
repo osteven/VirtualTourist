@@ -11,34 +11,47 @@ http://www.andrewcbancroft.com/2015/02/18/core-data-cheat-sheet-for-swift-ios-de
 */
 
 import Foundation
+import MapKit
 import CoreData
 
 @objc(Pin)
 
-class Pin: NSManagedObject {
+class Pin: NSManagedObject, Printable {
 
     struct Keys {
         static let Latitude = "latitude"
         static let Longitude = "longitude"
         static let LocationName = "locationName"
     }
-    let entityName = "Pin"
+    static let entityName = "Pin"
+
 
     @NSManaged var latitude: Double
     @NSManaged var longitude: Double
     @NSManaged var locationName: String
+
+    override var description: String { return locationName }
+    var locationCoordinate: CLLocationCoordinate2D {
+        return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+
 
     override init(entity: NSEntityDescription, insertIntoManagedObjectContext context: NSManagedObjectContext?) {
         super.init(entity: entity, insertIntoManagedObjectContext: context)
     }
 
     init(dictionary: [String : AnyObject], context: NSManagedObjectContext) {
-        let entity =  NSEntityDescription.entityForName(entityName, inManagedObjectContext: context)!
+        println("context=\(context.description)\n\(context.userInfo)")
+        if let entity =  NSEntityDescription.entityForName(Pin.entityName, inManagedObjectContext: context) {
         super.init(entity: entity,insertIntoManagedObjectContext: context)
 
         latitude = dictionary[Keys.Latitude] as! Double
         longitude = dictionary[Keys.Longitude] as! Double
-        locationName = dictionary[Keys.LocationName] as String
+        locationName = dictionary[Keys.LocationName] as! String
+        } else {
+            println("entity is nil for \(Pin.entityName)")
+            abort()
+        }
     }
 
 
