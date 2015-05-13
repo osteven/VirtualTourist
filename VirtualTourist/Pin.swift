@@ -22,6 +22,7 @@ class Pin: NSManagedObject, Printable {
         static let Latitude = "latitude"
         static let Longitude = "longitude"
         static let LocationName = "locationName"
+        static let Photos = "photos"
     }
     static let entityName = "Pin"
 
@@ -29,8 +30,9 @@ class Pin: NSManagedObject, Printable {
     @NSManaged var latitude: Double
     @NSManaged var longitude: Double
     @NSManaged var locationName: String
+    @NSManaged var photos: [Photo]
 
-    override var description: String { return locationName }
+    override var description: String { return locationName + ":\(photos.count) photos" }
     var locationCoordinate: CLLocationCoordinate2D {
         return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
@@ -43,11 +45,11 @@ class Pin: NSManagedObject, Printable {
     init(dictionary: [String : AnyObject], context: NSManagedObjectContext) {
         println("context=\(context.description)\n\(context.userInfo)")
         if let entity =  NSEntityDescription.entityForName(Pin.entityName, inManagedObjectContext: context) {
-        super.init(entity: entity,insertIntoManagedObjectContext: context)
+            super.init(entity: entity,insertIntoManagedObjectContext: context)
 
-        latitude = dictionary[Keys.Latitude] as! Double
-        longitude = dictionary[Keys.Longitude] as! Double
-        locationName = dictionary[Keys.LocationName] as! String
+            latitude = dictionary[Keys.Latitude] as! Double
+            longitude = dictionary[Keys.Longitude] as! Double
+            locationName = dictionary[Keys.LocationName] as! String
         } else {
             println("entity is nil for \(Pin.entityName)")
             abort()

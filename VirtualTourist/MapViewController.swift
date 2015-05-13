@@ -25,9 +25,9 @@ class MapViewController: UIViewController, MKMapViewDelegate {
     }
 
     var sharedContext: NSManagedObjectContext {
-        //        return CoreDataStackManager.sharedInstance.managedObjectContext!
-        return PersistenceManager.sharedInstance.managedObjectContext
-    }
+        return CoreDataStackManager.sharedInstance.managedObjectContext!
+     }
+
     private var loadPinCounter = 0
     private var savedMapRegionAtStartup: MKCoordinateRegion?
 
@@ -40,20 +40,20 @@ class MapViewController: UIViewController, MKMapViewDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
 
+        debugloadPhotos()
         // have to capture this at startup, because loading map pins overwrites it
         savedMapRegionAtStartup = getSavedMapRegion()
 
         longPressGesture.addTarget(self, action: "handleLongPress:")
         mapView.addGestureRecognizer(longPressGesture)
-        dispatch_async(dispatch_get_main_queue(), { self.loadPins() })
-        dispatch_async(dispatch_get_main_queue(), { self.mapView.setRegion(self.savedMapRegionAtStartup!, animated: true) })
+        self.loadPins()
+        self.mapView.setRegion(self.savedMapRegionAtStartup!, animated: true)
     }
 
 
     override func viewWillAppear(animated: Bool) {
         super.viewWillAppear(animated)
         navigationController?.navigationBarHidden = true
-        //      let savedMapRegionAtStartup = getSavedMapRegion()
     }
 
     func saveMapRegion() {
@@ -86,18 +86,23 @@ class MapViewController: UIViewController, MKMapViewDelegate {
     }
 
 
+
+
+    private func debugloadPhotos() {
+        println("debugloadPhotos thread:\(NSThread.currentThread().description)")
+        let error: NSErrorPointer = nil
+        let fetchRequest = NSFetchRequest(entityName: "Photo")
+        let results = self.sharedContext.executeFetchRequest(fetchRequest, error: error)
+        if error != nil { println("Error in debugloadPhotos(): \(error)") }
+        for photo in results! { println("\(photo)") }
+    }
+
     private func loadPins() {
-        if !PersistenceManager.sharedInstance.isLoaded {
-            loadPinCounter++
-            println("loadPins: #\(loadPinCounter)")
-            if loadPinCounter >= 200 { println("failed to loadPins"); return }
-            dispatch_time(DISPATCH_TIME_NOW, Int64(0.5 * Double(NSEC_PER_SEC)));
-            dispatch_async(dispatch_get_main_queue(), { self.loadPins() })
-           return
-        }
+        println("loadPins thread:\(NSThread.currentThread().description)")
         let error: NSErrorPointer = nil
         let fetchRequest = NSFetchRequest(entityName: "Pin")
-        let results = sharedContext.executeFetchRequest(fetchRequest, error: error)
+
+        let results = self.sharedContext.executeFetchRequest(fetchRequest, error: error)
         println("loadPins: \(results)")
         if error != nil {
             println("Error in loadPins(): \(error)")
@@ -107,10 +112,25 @@ class MapViewController: UIViewController, MKMapViewDelegate {
             let pointAnnotation = PinLinkAnnotation(pinRef: pin)
             pointAnnotation.coordinate = pin.locationCoordinate
             pointAnnotation.title = pin.locationName
-            pointAnnotation.subtitle = "tap to see photos"
-            mapView.addAnnotation(pointAnnotation)
+            let numPhotos = pin.photos.count
+            pointAnnotation.subtitle = PhotoLoader.numPhotosString(numPhotos)
+            self.mapView.addAnnotation(pointAnnotation)
         }
+
+        //      self.clearAllPins()
+   }
+
+    private func clearAllPins() {
+        let annotationArray = self.mapView.annotations.reverse()
+        for annotation in annotationArray  {
+            let plAnnotation = annotation as! PinLinkAnnotation
+            self.sharedContext.deleteObject(plAnnotation.pinRef)
+            self.mapView.removeAnnotation(plAnnotation)
+        }
+        CoreDataStackManager.sharedInstance.saveContext()
     }
+
+
 
     // MARK: - Map support
 
@@ -124,19 +144,33 @@ class MapViewController: UIViewController, MKMapViewDelegate {
             let temporaryTitle = "\(touchMapCoordinate.latitude), \(touchMapCoordinate.longitude)"
             let dictionary: [String: AnyObject] = [Pin.Keys.Latitude: touchMapCoordinate.latitude,
                 Pin.Keys.Longitude: touchMapCoordinate.longitude, Pin.Keys.LocationName: temporaryTitle]
-            let pin = Pin(dictionary: dictionary, context: sharedContext)
+
+
+            println("handleLongPress2 thread:\(NSThread.currentThread().description)")
+            let pin = Pin(dictionary: dictionary, context: self.sharedContext)
+            CoreDataStackManager.sharedInstance.saveContext()
 
             let pointAnnotation = PinLinkAnnotation(pinRef: pin)
-            println("PinLinkAnnotation created:\(pointAnnotation.description)")
-            //   let pointAnnotation = MKPointAnnotation()
-            pointAnnotation.coordinate = touchMapCoordinate;
-            pointAnnotation.title = temporaryTitle
+            pointAnnotation.coordinate = touchMapCoordinate
+            pointAnnotation.title = title
             pointAnnotation.subtitle = "tap to see photos"
+
             mapView.addAnnotation(pointAnnotation)
-            PersistenceManager.sharedInstance.save()
             reverseGeocode(pointAnnotation)
+            let loader = PhotoLoader(forAnnotation: pointAnnotation, inRegion: mapView.region, withUIClosure: uiReportingClosure, context: sharedContext)
         }
     }
+
+
+    //TODO: error report
+    func uiReportingClosure(error: NSError?) -> Void {
+        if error != nil {
+            println("Error: \(error)")
+            return
+        }
+    }
+
+
 
     func mapView(mapView: MKMapView!, viewForAnnotation annotation: MKAnnotation!) -> MKAnnotationView! {
 
@@ -162,30 +196,26 @@ class MapViewController: UIViewController, MKMapViewDelegate {
 
     func mapView(mapView: MKMapView!, annotationView view: MKAnnotationView!, didChangeDragState newState: MKAnnotationViewDragState, fromOldState oldState: MKAnnotationViewDragState) {
         if newState == .Ending {
-//            let droppedAt = view.annotation.coordinate
-//            println("drop \(droppedAt.latitude), \(droppedAt.longitude)")
             reverseGeocode(view.annotation as! PinLinkAnnotation)
 
+            // TODO: reload photos
         }
     }
 
 
     func mapView(mapView: MKMapView!, annotationView: MKAnnotationView, calloutAccessoryControlTapped control: UIControl) {
         if control == annotationView.rightCalloutAccessoryView {
-            //          println("tap \(annotationView.annotation.title)")
 
+            println("\n\n\n\n\ntap pin:\(annotationView.annotation as! PinLinkAnnotation).pinRef)")
+            debugloadPhotos()
+            println("tap pin:\(annotationView.annotation as! PinLinkAnnotation).pinRef)\n\n\n\n\n")
 
-
-            let controller = self.storyboard?.instantiateViewControllerWithIdentifier("PhotoAlbumViewController") as! PhotoAlbumViewController
-//            let nav = self.navigationController
-//            if nav == nil { println("nil") }
+            let controller =    self.storyboard?.instantiateViewControllerWithIdentifier("PhotoAlbumViewController") as! PhotoAlbumViewController
 
             println("mvc=\(mapView.centerCoordinate.latitude), \(mapView.centerCoordinate.longitude); \( mapView.region.span.latitudeDelta), \( mapView.region.span.longitudeDelta)")
 
             controller.currentPin = (annotationView.annotation as! PinLinkAnnotation).pinRef
             self.navigationController?.pushViewController(controller, animated: true)
-
-
         }
     }
 
@@ -208,17 +238,25 @@ class MapViewController: UIViewController, MKMapViewDelegate {
 
             let placeMark = pmArray![0]
             let formattedAddressLines = placeMark.addressDictionary["FormattedAddressLines"] as? NSArray
+            println("reverseGeocode3 thread:\(NSThread.currentThread().description)")
 
             if let addressStr = formattedAddressLines?.componentsJoinedByString(" ") {
-                println("got PinLinkAnnotation:\(annotation)")
-
                 println("updating pin addressStr:\(addressStr)")
+
                 annotation.pinRef.locationName = addressStr
-                PersistenceManager.sharedInstance.save()
-                dispatch_async(dispatch_get_main_queue(), { annotation.title = addressStr })
+                annotation.title = addressStr
+                CoreDataStackManager.sharedInstance.saveContext()
+
             }
         })
     }
+
+
+
+
+
+
+
 
 }
 

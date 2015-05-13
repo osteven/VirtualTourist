@@ -16,22 +16,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
 
     func application(application: UIApplication, didFinishLaunchingWithOptions launchOptions: [NSObject: AnyObject]?) -> Bool {
-
-
-         PersistenceManager.sharedInstance.initializeCoreData(initCoreDataCompletion)
         return true
-    }
-
-
-
-    private func initCoreDataCompletion(error: NSError?) -> Void {
-        println("initCoreDataCompletion:\(NSThread.currentThread().description)")
-
-        if error != nil {
-            println("Error initializing CoreData:\n\(error)\n\n\(error!.userInfo)")
-            return
-        }
-
     }
 
 }

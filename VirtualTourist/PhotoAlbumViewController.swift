@@ -8,30 +8,38 @@
 
 import UIKit
 import MapKit
+import CoreData
 
 let reuseIdentifier = "PhotoAlbumCell"
 
 class PhotoAlbumViewController: UIViewController {
 
 
-    var currentPin: Pin? = nil
+    var currentPin: Pin!
+
     @IBOutlet weak var mapView: MKMapView!
     @IBOutlet weak var collectionView: UICollectionView!
 
+    var mainQueueContext: NSManagedObjectContext {
+        return CoreDataStackManager.sharedInstance.managedObjectContext!
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
 
         navigationController?.navigationBarHidden = false
 
+        var error: NSError? = nil
+        currentPin = self.mainQueueContext.existingObjectWithID(currentPin!.objectID, error: &error) as! Pin
+
 
         // Uncomment the following line to preserve selection between presentations
         // self.clearsSelectionOnViewWillAppear = false
 
         // Register cell classes
-        self.collectionView!.registerClass(UICollectionViewCell.self, forCellWithReuseIdentifier: reuseIdentifier)
+        self.collectionView!.registerClass(PhotoCollectionViewCell.self, forCellWithReuseIdentifier: reuseIdentifier)
 
-
+        println("PhotoAlbumViewController, pin=\(currentPin)")
 
     }
 
@@ -39,18 +47,26 @@ class PhotoAlbumViewController: UIViewController {
     override func viewDidAppear(animated: Bool) {
         super.viewDidAppear(animated)
 
-        if let pin = currentPin {
-            let pointAnnotation = PinLinkAnnotation(pinRef: pin)
-            pointAnnotation.coordinate = pin.locationCoordinate
-            pointAnnotation.title = pin.locationName
-            pointAnnotation.subtitle = ""
-            mapView.addAnnotation(pointAnnotation)
-            let span = MKCoordinateSpan(latitudeDelta: 0.001, longitudeDelta: 0.001)
-            let region = MKCoordinateRegion(center: pin.locationCoordinate, span: span)
-            self.mapView.centerCoordinate = pin.locationCoordinate
-            self.mapView.setRegion(region, animated: true)
-        }
+
+        println("PhotoAlbumViewController viewDidAppear thread:\(NSThread.currentThread().description)")
+        println("currentPin-->photos:\(currentPin.photos)")
+
+
+
+        let pointAnnotation = MKPointAnnotation()
+        pointAnnotation.coordinate = currentPin.locationCoordinate
+        pointAnnotation.title = currentPin.locationName
+        pointAnnotation.subtitle = ""
+
+        mapView.addAnnotation(pointAnnotation)
+        let span = MKCoordinateSpan(latitudeDelta: 0.001, longitudeDelta: 0.001)
+        let region = MKCoordinateRegion(center: pointAnnotation.coordinate, span: span)
+        self.mapView.centerCoordinate = pointAnnotation.coordinate
+        self.mapView.setRegion(region, animated: true)
+
     }
+
+
 
     /*
     // MARK: - Navigation
@@ -64,24 +80,23 @@ class PhotoAlbumViewController: UIViewController {
 
     // MARK: UICollectionViewDataSource
 
-    func numberOfSectionsInCollectionView(collectionView: UICollectionView) -> Int {
-        //#warning Incomplete method implementation -- Return the number of sections
-        return 0
-    }
-
 
     func collectionView(collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-        //#warning Incomplete method implementation -- Return the number of items in the section
-        return 0
+        println("numberOfItemsInSection count=\(currentPin.photos.count)")
+        return currentPin.photos.count
     }
-
     func collectionView(collectionView: UICollectionView, cellForItemAtIndexPath indexPath: NSIndexPath) -> UICollectionViewCell {
-        let cell = collectionView.dequeueReusableCellWithReuseIdentifier(reuseIdentifier, forIndexPath: indexPath) as! UICollectionViewCell
-    
-        // Configure the cell
-    
+        let cell = collectionView.dequeueReusableCellWithReuseIdentifier(reuseIdentifier, forIndexPath: indexPath) as! PhotoCollectionViewCell
+        println("cellForItemAtIndexPath currentPin:\(currentPin.description)")
+
+        let phArray: [Photo] = currentPin.photos
+        println("\(phArray)")
+        let photo = currentPin.photos[indexPath.row]
+        cell.descriptionLabel.text = photo.description
         return cell
     }
+
+
 
     // MARK: UICollectionViewDelegate
 
