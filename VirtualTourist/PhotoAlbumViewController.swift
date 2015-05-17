@@ -24,34 +24,29 @@ class PhotoAlbumViewController: UIViewController {
         return CoreDataStackManager.sharedInstance.managedObjectContext!
     }
 
+
+
+    required init(coder aDecoder: NSCoder) {
+        super.init(coder: aDecoder)
+        NSNotificationCenter.defaultCenter().addObserver(self,
+            selector: "photoLoadedNotification:",
+            name: PhotoLoader.NOTIFICATION_PHOTO_LOADED, object: nil)
+    }
+    deinit {
+        NSNotificationCenter.defaultCenter().removeObserver(self)
+    }
+
+
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
         navigationController?.navigationBarHidden = false
-
-        var error: NSError? = nil
-        currentPin = self.mainQueueContext.existingObjectWithID(currentPin!.objectID, error: &error) as! Pin
-
-
-        // Uncomment the following line to preserve selection between presentations
-        // self.clearsSelectionOnViewWillAppear = false
-
-        // Register cell classes
-        self.collectionView!.registerClass(PhotoCollectionViewCell.self, forCellWithReuseIdentifier: reuseIdentifier)
-
-        println("PhotoAlbumViewController, pin=\(currentPin)")
-
     }
 
 
     override func viewDidAppear(animated: Bool) {
         super.viewDidAppear(animated)
-
-
-        println("PhotoAlbumViewController viewDidAppear thread:\(NSThread.currentThread().description)")
-        println("currentPin-->photos:\(currentPin.photos)")
-
-
 
         let pointAnnotation = MKPointAnnotation()
         pointAnnotation.coordinate = currentPin.locationCoordinate
@@ -67,6 +62,26 @@ class PhotoAlbumViewController: UIViewController {
     }
 
 
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+
+        // Lay out the collection view so that cells take up 1/3 of the width,
+        // with 1 space in between.
+        let layout : UICollectionViewFlowLayout = UICollectionViewFlowLayout()
+        layout.sectionInset = UIEdgeInsets(top: 1, left: 1, bottom: 1, right: 1)
+        layout.minimumLineSpacing = 1
+        layout.minimumInteritemSpacing = 1
+
+        let width = floor(self.collectionView.frame.size.width/3 - 1)
+        layout.itemSize = CGSize(width: width, height: width)
+        collectionView.collectionViewLayout = layout
+    }
+
+
+
+    func photoLoadedNotification(notification: NSNotification) {
+        collectionView.reloadData()
+    }
 
     /*
     // MARK: - Navigation
@@ -82,17 +97,23 @@ class PhotoAlbumViewController: UIViewController {
 
 
     func collectionView(collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-        println("numberOfItemsInSection count=\(currentPin.photos.count)")
         return currentPin.photos.count
     }
+
+
     func collectionView(collectionView: UICollectionView, cellForItemAtIndexPath indexPath: NSIndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCellWithReuseIdentifier(reuseIdentifier, forIndexPath: indexPath) as! PhotoCollectionViewCell
-        println("cellForItemAtIndexPath currentPin:\(currentPin.description)")
 
-        let phArray: [Photo] = currentPin.photos
-        println("\(phArray)")
+        var photoImage = UIImage(named: "Placeholder")
+
         let photo = currentPin.photos[indexPath.row]
-        cell.descriptionLabel.text = photo.description
+        if photo.filePath != nil {
+            cell.activityIndicator.stopAnimating()
+            photoImage = photo.photoImage
+        } else {
+            cell.activityIndicator.startAnimating()
+        }
+        cell.photoImageView.image = photoImage
         return cell
     }
 

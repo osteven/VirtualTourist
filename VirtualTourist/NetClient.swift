@@ -14,8 +14,7 @@ public typealias TaskRequestClosure = (data: NSData!, response: NSURLResponse!, 
 
 class NetClient {
 
-    static let sharedInstance = NetClient()
-    private let session = NSURLSession.sharedSession()
+    private let genericSession = NSURLSession.sharedSession()
     private let BASE_URL = "https://api.flickr.com/services/rest/"
     private let METHOD_NAME = "flickr.photos.search"
     private let API_KEY = "263de36c553fc73f111b6634183cdb4f"
@@ -24,6 +23,7 @@ class NetClient {
     private let DATA_FORMAT = "json"
     private let NO_JSON_CALLBACK = "1"
 
+    static let sharedInstance = NetClient()
     private init() {}
 
 
@@ -47,7 +47,7 @@ class NetClient {
     }
 
 
-    func initFlickrSearch(region: MKCoordinateRegion, completionHandler: TaskRequestClosure) {
+    func initPhotoListSearch(region: MKCoordinateRegion, completionHandler: TaskRequestClosure) {
         let methodArguments = [
                 "method": METHOD_NAME,
                 "api_key": API_KEY,
@@ -55,9 +55,11 @@ class NetClient {
                 "safe_search": SAFE_SEARCH,
                 "extras": EXTRAS,
                 "format": DATA_FORMAT,
+                "per_page": 100,
+                "page": 1,
                 "nojsoncallback": NO_JSON_CALLBACK
             ]
-        loadSearchedFlickrPhotos(methodArguments, completionHandler: completionHandler)
+        loadSearchedFlickrPhotoList(methodArguments as! Dictionary<String,AnyObject>, completionHandler: completionHandler)
     }
     private func getMapBoundingBoxString(region: MKCoordinateRegion) -> String {
         let latitude = region.center.latitude
@@ -73,13 +75,19 @@ class NetClient {
     
 
 
-    func loadSearchedFlickrPhotos(methodArguments: [String : AnyObject], completionHandler: TaskRequestClosure) {
+    private func loadSearchedFlickrPhotoList(methodArguments: [String : AnyObject], completionHandler: TaskRequestClosure) {
         let request = NSURLRequest(URL: NSURL(string: BASE_URL + NetClient.escapedParameters(methodArguments))!)
-        let task = session.dataTaskWithRequest(request, completionHandler: completionHandler)
+        let task = genericSession.dataTaskWithRequest(request, completionHandler: completionHandler)
         task.resume()
     }
 
 
+
+    func getOnePhotoImage(urlString: String, session: NSURLSession, completionHandler: TaskRequestClosure) {
+        let request = NSURLRequest(URL: NSURL(string: urlString)!)
+        let task = genericSession.dataTaskWithRequest(request, completionHandler: completionHandler)
+        task.resume()
+    }
 
 
 }

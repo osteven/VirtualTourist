@@ -43,16 +43,23 @@ class Pin: NSManagedObject, Printable {
     }
 
     init(dictionary: [String : AnyObject], context: NSManagedObjectContext) {
-        println("context=\(context.description)\n\(context.userInfo)")
-        if let entity =  NSEntityDescription.entityForName(Pin.entityName, inManagedObjectContext: context) {
-            super.init(entity: entity,insertIntoManagedObjectContext: context)
+        let entity =  NSEntityDescription.entityForName(Pin.entityName, inManagedObjectContext: context)
+        super.init(entity: entity!, insertIntoManagedObjectContext: context)
 
-            latitude = dictionary[Keys.Latitude] as! Double
-            longitude = dictionary[Keys.Longitude] as! Double
-            locationName = dictionary[Keys.LocationName] as! String
+        if let latitude = dictionary[Keys.Latitude] as? Double {
+            self.latitude = latitude
         } else {
-            println("entity is nil for \(Pin.entityName)")
-            abort()
+            self.latitude = 0.0
+        }
+        if let longitude = dictionary[Keys.Longitude] as? Double {
+            self.longitude = longitude
+        } else {
+            self.longitude = 0.0
+        }
+        if let locationName = dictionary[Keys.LocationName] as? String {
+            self.locationName = locationName
+        } else {
+            self.locationName = ""
         }
     }
 

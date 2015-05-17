@@ -109,7 +109,7 @@ class CoreDataStackManager {
         if coordinator == nil {
             return nil
         }
-        var managedObjectContext = NSManagedObjectContext()
+        var managedObjectContext = NSManagedObjectContext(concurrencyType: .MainQueueConcurrencyType)
         managedObjectContext.persistentStoreCoordinator = coordinator
         return managedObjectContext
         }()
@@ -119,9 +119,10 @@ class CoreDataStackManager {
     func saveContext () {
 
         if let context = self.managedObjectContext {
-        
+            if !context.hasChanges { return }
+
             var error: NSError? = nil
-            if context.hasChanges && !context.save(&error) {
+            if !context.save(&error) {
                 NSLog("Unresolved error \(error), \(error!.userInfo)")
                 abort()
             }
