@@ -12,19 +12,27 @@ import CoreData
 
 let reuseIdentifier = "PhotoAlbumCell"
 
-class PhotoAlbumViewController: UIViewController {
+class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
 
 
+    // MARK: - Properties
     var currentPin: Pin!
+    var currentAnnotation: MKPointAnnotation!
+
+    private var selectedIndexes = [NSIndexPath]()
+    private var kvoContext: UInt8 = 1   // requeired to be a var
 
     @IBOutlet weak var mapView: MKMapView!
     @IBOutlet weak var collectionView: UICollectionView!
+    @IBOutlet weak var newCollectionButton: UIBarButtonItem!
+    @IBOutlet weak var deleteSelectedButton: UIBarButtonItem!
 
-    var mainQueueContext: NSManagedObjectContext {
+    var sharedContext: NSManagedObjectContext {
         return CoreDataStackManager.sharedInstance.managedObjectContext!
     }
 
 
+    // MARK: - Lifecycle
 
     required init(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
@@ -32,18 +40,14 @@ class PhotoAlbumViewController: UIViewController {
             selector: "photoLoadedNotification:",
             name: PhotoLoader.NOTIFICATION_PHOTO_LOADED, object: nil)
     }
-    deinit {
-        NSNotificationCenter.defaultCenter().removeObserver(self)
-    }
 
-
+    deinit { NSNotificationCenter.defaultCenter().removeObserver(self) }
 
     override func viewDidLoad() {
         super.viewDidLoad()
-
         navigationController?.navigationBarHidden = false
+        deleteSelectedButton.enabled = false
     }
-
 
     override func viewDidAppear(animated: Bool) {
         super.viewDidAppear(animated)
@@ -53,20 +57,34 @@ class PhotoAlbumViewController: UIViewController {
         pointAnnotation.title = currentPin.locationName
         pointAnnotation.subtitle = ""
 
+        newCollectionButton.enabled = false
+        if let queue = currentPin.photoListLoader?.photoLoadQueue {
+            queue.addObserver(self, forKeyPath: "operationCount",
+                options: NSKeyValueObservingOptions.New, context: &kvoContext)
+            if queue.operationCount == 0 { newCollectionButton.enabled = true }
+        } else {
+            newCollectionButton.enabled = true
+        }
+
+
         mapView.addAnnotation(pointAnnotation)
         let span = MKCoordinateSpan(latitudeDelta: 0.001, longitudeDelta: 0.001)
         let region = MKCoordinateRegion(center: pointAnnotation.coordinate, span: span)
         self.mapView.centerCoordinate = pointAnnotation.coordinate
         self.mapView.setRegion(region, animated: true)
+    }
 
+    override func viewWillDisappear(animated: Bool) {
+        super.viewWillDisappear(animated)
+        if let queue = currentPin.photoListLoader?.photoLoadQueue {
+            queue.removeObserver(self, forKeyPath: "operationCount")
+        }
     }
 
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
 
-        // Lay out the collection view so that cells take up 1/3 of the width,
-        // with 1 space in between.
         let layout : UICollectionViewFlowLayout = UICollectionViewFlowLayout()
         layout.sectionInset = UIEdgeInsets(top: 1, left: 1, bottom: 1, right: 1)
         layout.minimumLineSpacing = 1
@@ -77,11 +95,74 @@ class PhotoAlbumViewController: UIViewController {
         collectionView.collectionViewLayout = layout
     }
 
+    // MARK: - Actions
+    @IBAction func newCollectionAction(sender: UIBarButtonItem) { deleteAllPhotos() }
+
+    @IBAction func deleteSelectedAction(sender: UIBarButtonItem) { deleteSelectedPhotos() }
+
+    @IBAction func informationButton(sender: UIButton) { }
 
 
-    func photoLoadedNotification(notification: NSNotification) {
+
+    // MARK: - Utilities
+
+    func photoLoadedNotification(notification: NSNotification) { collectionView.reloadData() }
+
+    // KVO: http://blog.scottlogic.com/2015/02/11/swift-kvo-alternatives.html
+    override func observeValueForKeyPath(keyPath: String, ofObject object: AnyObject,
+        change: [NSObject : AnyObject], context: UnsafeMutablePointer<Void>) {
+            if context != &kvoContext { return }
+            if let listLoader = currentPin.photoListLoader {
+                if listLoader.photoLoadQueue.operationCount == 0 {
+                    newCollectionButton.enabled = true
+                }
+            }
+    }
+
+    private func configureCell(cell: PhotoCollectionViewCell, atIndexPath indexPath: NSIndexPath) {
+        if let index = find(selectedIndexes, indexPath) {
+            cell.photoImageView.alpha = 0.5
+            cell.informationButton.hidden = false
+        } else {
+            cell.photoImageView.alpha = 1.0
+            cell.informationButton.hidden = true
+        }
+    }
+
+
+    private func deleteAllPhotos() {
+        currentPin.deleteAllPhotos(sharedContext)
+        CoreDataStackManager.sharedInstance.saveContext()
+        currentAnnotation!.subtitle = PhotoListLoader.numPhotosString(currentPin.photos.count)
         collectionView.reloadData()
     }
+
+
+    private func deleteSelectedPhotos() {
+        var photosToDelete = [Photo]()
+        var indexPathsToDelete = [NSIndexPath]()
+
+        for indexPath in selectedIndexes {
+            photosToDelete.append(currentPin.photos[indexPath.row])
+            indexPathsToDelete.append(indexPath)
+        }
+        for photo in photosToDelete {
+            photo.photoImage = nil          // delete the disk file
+            sharedContext.deleteObject(photo)
+        }
+        CoreDataStackManager.sharedInstance.saveContext()
+        currentAnnotation!.subtitle = PhotoListLoader.numPhotosString(currentPin.photos.count)
+
+        collectionView.performBatchUpdates({() -> Void in
+            for indexPath in indexPathsToDelete {
+                self.collectionView.deleteItemsAtIndexPaths([indexPath])
+            }
+        }, completion: nil)
+
+        selectedIndexes = [NSIndexPath]()
+        deleteSelectedButton.enabled = false
+    }
+
 
     /*
     // MARK: - Navigation
@@ -97,7 +178,7 @@ class PhotoAlbumViewController: UIViewController {
 
 
     func collectionView(collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-        return currentPin.photos.count
+       return currentPin.photos.count
     }
 
 
@@ -105,7 +186,6 @@ class PhotoAlbumViewController: UIViewController {
         let cell = collectionView.dequeueReusableCellWithReuseIdentifier(reuseIdentifier, forIndexPath: indexPath) as! PhotoCollectionViewCell
 
         var photoImage = UIImage(named: "Placeholder")
-
         let photo = currentPin.photos[indexPath.row]
         if photo.filePath != nil {
             cell.activityIndicator.stopAnimating()
@@ -114,40 +194,28 @@ class PhotoAlbumViewController: UIViewController {
             cell.activityIndicator.startAnimating()
         }
         cell.photoImageView.image = photoImage
+        configureCell(cell, atIndexPath: indexPath)
         return cell
     }
 
 
 
-    // MARK: UICollectionViewDelegate
+    // MARK: - UICollectionViewDelegate
 
-    /*
-    // Uncomment this method to specify if the specified item should be highlighted during tracking
-    override func collectionView(collectionView: UICollectionView, shouldHighlightItemAtIndexPath indexPath: NSIndexPath) -> Bool {
-        return true
-    }
-    */
 
-    /*
-    // Uncomment this method to specify if the specified item should be selected
-    override func collectionView(collectionView: UICollectionView, shouldSelectItemAtIndexPath indexPath: NSIndexPath) -> Bool {
-        return true
-    }
-    */
+    func collectionView(collectionView: UICollectionView, didSelectItemAtIndexPath indexPath: NSIndexPath) {
 
-    /*
-    // Uncomment these methods to specify if an action menu should be displayed for the specified item, and react to actions performed on the item
-    override func collectionView(collectionView: UICollectionView, shouldShowMenuForItemAtIndexPath indexPath: NSIndexPath) -> Bool {
-        return false
+        let cell = collectionView.cellForItemAtIndexPath(indexPath) as! PhotoCollectionViewCell
+        if let index = find(selectedIndexes, indexPath) {
+            selectedIndexes.removeAtIndex(index)
+        } else {
+            selectedIndexes.append(indexPath)
+        }
+        deleteSelectedButton.enabled = selectedIndexes.count > 0
+        configureCell(cell, atIndexPath: indexPath)
     }
 
-    override func collectionView(collectionView: UICollectionView, canPerformAction action: Selector, forItemAtIndexPath indexPath: NSIndexPath, withSender sender: AnyObject?) -> Bool {
-        return false
-    }
 
-    override func collectionView(collectionView: UICollectionView, performAction action: Selector, forItemAtIndexPath indexPath: NSIndexPath, withSender sender: AnyObject?) {
-    
-    }
-    */
+
 
 }

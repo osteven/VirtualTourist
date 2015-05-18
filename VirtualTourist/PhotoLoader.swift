@@ -35,7 +35,6 @@ class PhotoLoader {
         let image = UIImage(data: data)
         privateQueueContext.performBlockAndWait({
             self.photo.photoImage = image
-            // println("PhotoLoader path=\(self.photo.filePath), file=\(self.photo.fileName)")
             var error: NSError? = nil
             self.privateQueueContext.save(&error)
             if error != nil {

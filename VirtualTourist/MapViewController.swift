@@ -113,8 +113,7 @@ class MapViewController: UIViewController, MKMapViewDelegate {
             let pointAnnotation = PinLinkAnnotation(pinRef: pin)
             pointAnnotation.coordinate = pin.locationCoordinate
             pointAnnotation.title = pin.locationName
-            let numPhotos = pin.photos.count
-            pointAnnotation.subtitle = PhotoListLoader.numPhotosString(numPhotos)
+            pointAnnotation.subtitle = PhotoListLoader.numPhotosString(pin.photos.count)
             self.mapView.addAnnotation(pointAnnotation)
         }
 
@@ -141,13 +140,11 @@ class MapViewController: UIViewController, MKMapViewDelegate {
             let touchPoint = gestureRecognizer.locationInView(gestureRecognizer.view!)
             let touchMapCoordinate = mapView.convertPoint(touchPoint, toCoordinateFromView:mapView)
 
-            //println("handleLongPress thread:\(NSThread.currentThread().description)")
             let temporaryTitle = "\(touchMapCoordinate.latitude), \(touchMapCoordinate.longitude)"
             let dictionary: [String: AnyObject] = [Pin.Keys.Latitude: touchMapCoordinate.latitude,
                 Pin.Keys.Longitude: touchMapCoordinate.longitude, Pin.Keys.LocationName: temporaryTitle]
 
 
-            //println("handleLongPress2 thread:\(NSThread.currentThread().description)")
             let pin = Pin(dictionary: dictionary, context: self.sharedContext)
             CoreDataStackManager.sharedInstance.saveContext()
 
@@ -158,7 +155,8 @@ class MapViewController: UIViewController, MKMapViewDelegate {
 
             mapView.addAnnotation(pointAnnotation)
             reverseGeocode(pointAnnotation)
-            let loader = PhotoListLoader(forAnnotation: pointAnnotation, inRegion: mapView.region, withUIClosure: uiReportingClosure)
+            pin.photoListLoader = PhotoListLoader(forAnnotation: pointAnnotation,
+                inRegion: mapView.region, withUIClosure: uiReportingClosure)
         }
     }
 
@@ -208,14 +206,9 @@ class MapViewController: UIViewController, MKMapViewDelegate {
     func mapView(mapView: MKMapView!, annotationView: MKAnnotationView, calloutAccessoryControlTapped control: UIControl) {
         if control == annotationView.rightCalloutAccessoryView {
 
-            //println("\n\n\n\n\ntap pin:\(annotationView.annotation as! PinLinkAnnotation).pinRef)")
-            //debugloadPhotos()
-            //println("tap pin:\(annotationView.annotation as! PinLinkAnnotation).pinRef)\n\n\n\n\n")
-
             let controller = self.storyboard?.instantiateViewControllerWithIdentifier("PhotoAlbumViewController") as! PhotoAlbumViewController
 
-            //println("mvc=\(mapView.centerCoordinate.latitude), \(mapView.centerCoordinate.longitude); \( mapView.region.span.latitudeDelta), \( mapView.region.span.longitudeDelta)")
-
+            controller.currentAnnotation = annotationView.annotation as! MKPointAnnotation
             controller.currentPin = (annotationView.annotation as! PinLinkAnnotation).pinRef
             self.navigationController?.pushViewController(controller, animated: true)
         }

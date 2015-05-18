@@ -37,8 +37,8 @@ class Photo: NSManagedObject, Printable {
         set { filePath = ImageCache.sharedInstance.storeImage(newValue, withIdentifier: fileName) }
     }
 
-    var fileName: String {
-        return (urlString as NSString).lastPathComponent
+    private var fileName: String {
+        return location.uuid + "/" + (urlString as NSString).lastPathComponent
     }
 
 
@@ -49,11 +49,8 @@ class Photo: NSManagedObject, Printable {
     }
 
     init(dictionary: [String : AnyObject], pin: Pin, context: NSManagedObjectContext) {
-        //println("Photo init thread:\(NSThread.currentThread().description)")
         let entity =  NSEntityDescription.entityForName(Photo.entityName, inManagedObjectContext: context)!
         super.init(entity: entity, insertIntoManagedObjectContext: context)
-
-        //println("Photo init pin:\(pin.description)")
 
         if let title = dictionary[Keys.Title] as? String {
             self.title = title
@@ -68,6 +65,10 @@ class Photo: NSManagedObject, Printable {
         self.location = pin
         self.filePath = nil
     }
+
+
+
+
 
 
     

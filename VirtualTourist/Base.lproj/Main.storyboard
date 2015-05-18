@@ -76,32 +76,37 @@
                                             <rect key="frame" x="0.0" y="0.0" width="160" height="160"/>
                                             <autoresizingMask key="autoresizingMask"/>
                                             <subviews>
-                                                <imageView userInteractionEnabled="NO" contentMode="scaleAspectFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" translatesAutoresizingMaskIntoConstraints="NO" id="SVd-BC-B5K">
-                                                    <rect key="frame" x="0.0" y="0.0" width="160" height="160"/>
-                                                </imageView>
-                                                <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" fixedFrame="YES" text="Label" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="vR0-9G-DtC">
-                                                    <rect key="frame" x="0.0" y="142" width="160" height="18"/>
-                                                    <fontDescription key="fontDescription" type="system" pointSize="12"/>
-                                                    <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
-                                                    <nil key="highlightedColor"/>
-                                                </label>
                                                 <activityIndicatorView hidden="YES" opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" hidesWhenStopped="YES" style="white" translatesAutoresizingMaskIntoConstraints="NO" id="DsO-uO-6aI">
                                                     <rect key="frame" x="70" y="70" width="20" height="20"/>
                                                 </activityIndicatorView>
+                                                <imageView userInteractionEnabled="NO" contentMode="scaleAspectFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" translatesAutoresizingMaskIntoConstraints="NO" id="SVd-BC-B5K">
+                                                    <rect key="frame" x="0.0" y="0.0" width="160" height="160"/>
+                                                </imageView>
+                                                <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="detailDisclosure" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="rnC-iw-YDP">
+                                                    <rect key="frame" x="130" y="8" width="22" height="22"/>
+                                                    <state key="normal">
+                                                        <color key="titleShadowColor" white="0.5" alpha="1" colorSpace="calibratedWhite"/>
+                                                    </state>
+                                                    <connections>
+                                                        <action selector="informationButton:" destination="yEm-Ew-sZL" eventType="touchUpInside" id="7Ko-co-3Sk"/>
+                                                    </connections>
+                                                </button>
                                             </subviews>
                                             <color key="backgroundColor" white="0.0" alpha="0.0" colorSpace="calibratedWhite"/>
                                         </view>
                                         <constraints>
-                                            <constraint firstItem="SVd-BC-B5K" firstAttribute="leading" secondItem="ll4-0u-VvG" secondAttribute="leadingMargin" constant="-8" id="CSo-9h-Pb5"/>
+                                            <constraint firstItem="SVd-BC-B5K" firstAttribute="top" secondItem="ll4-0u-VvG" secondAttribute="topMargin" constant="-8" id="DKg-kz-AGu"/>
                                             <constraint firstAttribute="centerX" secondItem="DsO-uO-6aI" secondAttribute="centerX" id="Dm9-j6-vze"/>
                                             <constraint firstAttribute="centerY" secondItem="DsO-uO-6aI" secondAttribute="centerY" id="DrG-px-rNx"/>
-                                            <constraint firstAttribute="trailingMargin" secondItem="SVd-BC-B5K" secondAttribute="trailing" constant="-8" id="kOb-zI-EQB"/>
-                                            <constraint firstItem="SVd-BC-B5K" firstAttribute="top" secondItem="ll4-0u-VvG" secondAttribute="topMargin" constant="-8" id="nQZ-zg-owu"/>
-                                            <constraint firstAttribute="bottomMargin" secondItem="SVd-BC-B5K" secondAttribute="bottom" constant="-8" id="y3G-QE-NXL"/>
+                                            <constraint firstItem="rnC-iw-YDP" firstAttribute="trailing" secondItem="ll4-0u-VvG" secondAttribute="trailingMargin" id="T1M-Or-wAb"/>
+                                            <constraint firstAttribute="trailingMargin" secondItem="SVd-BC-B5K" secondAttribute="trailing" constant="-8" id="WmI-Hi-n8k"/>
+                                            <constraint firstItem="SVd-BC-B5K" firstAttribute="leading" secondItem="ll4-0u-VvG" secondAttribute="leadingMargin" constant="-8" id="XKL-TS-U4t"/>
+                                            <constraint firstAttribute="bottomMargin" secondItem="SVd-BC-B5K" secondAttribute="bottom" constant="-8" id="ZPz-p8-hFp"/>
+                                            <constraint firstItem="rnC-iw-YDP" firstAttribute="top" secondItem="ll4-0u-VvG" secondAttribute="topMargin" id="dgg-Fx-A4p"/>
                                         </constraints>
                                         <connections>
                                             <outlet property="activityIndicator" destination="DsO-uO-6aI" id="1AF-di-fe3"/>
-                                            <outlet property="descriptionLabel" destination="vR0-9G-DtC" id="aJ6-ip-5ni"/>
+                                            <outlet property="informationButton" destination="rnC-iw-YDP" id="wbt-G0-KBY"/>
                                             <outlet property="photoImageView" destination="SVd-BC-B5K" id="EEn-uD-Z03"/>
                                         </connections>
                                     </collectionViewCell>
@@ -115,7 +120,17 @@
                                 <rect key="frame" x="0.0" y="556" width="600" height="44"/>
                                 <items>
                                     <barButtonItem style="plain" systemItem="flexibleSpace" id="Egy-Oo-sLs"/>
-                                    <barButtonItem title="New Collection" id="PnN-ct-7d4"/>
+                                    <barButtonItem enabled="NO" title="New Collection" id="PnN-ct-7d4">
+                                        <connections>
+                                            <action selector="newCollectionAction:" destination="yEm-Ew-sZL" id="UeE-FD-s6r"/>
+                                        </connections>
+                                    </barButtonItem>
+                                    <barButtonItem style="plain" systemItem="flexibleSpace" id="y6X-t1-LJw"/>
+                                    <barButtonItem title="Delete Selected" id="75h-Br-KgD">
+                                        <connections>
+                                            <action selector="deleteSelectedAction:" destination="yEm-Ew-sZL" id="Vq1-D3-tld"/>
+                                        </connections>
+                                    </barButtonItem>
                                     <barButtonItem style="plain" systemItem="flexibleSpace" id="giS-ss-Fpg"/>
                                 </items>
                             </toolbar>
@@ -145,7 +160,9 @@
                     </view>
                     <connections>
                         <outlet property="collectionView" destination="mNE-JI-PQ7" id="W2D-za-zfb"/>
+                        <outlet property="deleteSelectedButton" destination="75h-Br-KgD" id="Pxs-3V-2uG"/>
                         <outlet property="mapView" destination="HSW-7A-5Zc" id="vuh-RY-9pb"/>
+                        <outlet property="newCollectionButton" destination="PnN-ct-7d4" id="vU5-04-RMP"/>
                     </connections>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="q1v-MN-YvN" userLabel="First Responder" sceneMemberID="firstResponder"/>

@@ -61,7 +61,14 @@ class ImageCache {
         data.writeToFile(path, atomically: true)
         return path
     }
-    
+
+
+    func createStorageDirectory(uniquePinID: String) {
+        let path = pathForIdentifier(uniquePinID)
+        NSFileManager.defaultManager().createDirectoryAtPath(path, withIntermediateDirectories: false, attributes: nil, error: nil)
+    }
+
+
     // MARK: - Helper
     
     func pathForIdentifier(identifier: String) -> String {

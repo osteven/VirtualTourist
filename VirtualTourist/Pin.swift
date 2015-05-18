@@ -30,7 +30,11 @@ class Pin: NSManagedObject, Printable {
     @NSManaged var latitude: Double
     @NSManaged var longitude: Double
     @NSManaged var locationName: String
+    @NSManaged var uuid: String
     @NSManaged var photos: [Photo]
+
+    var photoListLoader: PhotoListLoader?
+
 
     override var description: String { return locationName + ":\(photos.count) photos" }
     var locationCoordinate: CLLocationCoordinate2D {
@@ -61,9 +65,16 @@ class Pin: NSManagedObject, Printable {
         } else {
             self.locationName = ""
         }
+        uuid = NSUUID().UUIDString
+        ImageCache.sharedInstance.createStorageDirectory(uuid)
     }
 
-
+    func deleteAllPhotos(context: NSManagedObjectContext) {
+        for photo in photos {
+            photo.photoImage = nil          // delete the disk file
+            context.deleteObject(photo)
+        }
+    }
 
 
 }

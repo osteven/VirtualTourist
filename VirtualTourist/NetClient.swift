@@ -85,7 +85,7 @@ class NetClient {
 
     func getOnePhotoImage(urlString: String, session: NSURLSession, completionHandler: TaskRequestClosure) {
         let request = NSURLRequest(URL: NSURL(string: urlString)!)
-        let task = genericSession.dataTaskWithRequest(request, completionHandler: completionHandler)
+        let task = session.dataTaskWithRequest(request, completionHandler: completionHandler)
         task.resume()
     }
 

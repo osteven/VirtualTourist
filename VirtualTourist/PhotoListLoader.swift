@@ -24,6 +24,8 @@ class PhotoListLoader {
     private var perPage: Int = 0
     private var currentPage: Int = 0
 
+    let photoLoadQueue = NSOperationQueue()
+
 
     class func numPhotosString(num: Int) -> String {
         switch num {
@@ -43,10 +45,8 @@ class PhotoListLoader {
 
 
     init(forAnnotation: PinLinkAnnotation, inRegion: MKCoordinateRegion, withUIClosure: UIReportingClosure) {
-        //     println("PhotoListLoader init thread:\(NSThread.currentThread().description)")
         self.pinAnnotation = forAnnotation
         self.uiReportingClosure = withUIClosure
-
         NetClient.sharedInstance.initPhotoListSearch(inRegion, completionHandler: self.searchClosure)
     }
 
@@ -59,8 +59,8 @@ class PhotoListLoader {
         }
 
         var parsingError: NSError? = nil
-        let parsedResult = NSJSONSerialization.JSONObjectWithData(data, options: NSJSONReadingOptions.AllowFragments, error: &parsingError) as! NSDictionary
-        println("/n....parsingError:\(parsingError)/n....parsedResult=\(parsedResult)")
+        let parsedResult = NSJSONSerialization.JSONObjectWithData(data, options: NSJSONReadingOptions.AllowFragments,
+            error: &parsingError) as! NSDictionary
         if parsingError == nil {
             if let photosDictionary = parsedResult.valueForKey("photos") as? [String:AnyObject] {
                 // this closure runs in a background thread, so I have to access the data on a private queue
@@ -109,11 +109,8 @@ class PhotoListLoader {
             return
         }
 
-        var i = 0
         for aPhotoDictionary in photosArray {
             let photo = Photo(dictionary: aPhotoDictionary, pin: privateQPin, context: privateQueueContext)
-            println("\(i): \(photo.fileName)")
-            i++
         }
 
         // save both the private context and the parent main context
@@ -127,22 +124,24 @@ class PhotoListLoader {
 
 
         // download all photos from the list, max 3 at a time
-        let queue = NSOperationQueue()
-        queue.maxConcurrentOperationCount = 3
-        let session = NSURLSession(configuration: NSURLSessionConfiguration.defaultSessionConfiguration(), delegate: nil, delegateQueue: queue)
+        photoLoadQueue.maxConcurrentOperationCount = 3
+        let session = NSURLSession(configuration: NSURLSessionConfiguration.defaultSessionConfiguration(), delegate: nil, delegateQueue: photoLoadQueue)
 
-        i = 1
+
         for photo in privateQPin.photos {
-            if photo.urlString == "" { println("\(i): nil url"); continue }
+            if photo.urlString == "" { continue }
             privateQueueContext.performBlock({
                 let loader = PhotoLoader(photo: photo, privateQueueContext: self.privateQueueContext, session: session)
             })
-            i++
+
             // uncomment this line to test the asynchronous display of photos in the PhotoAlbumViewController
-            //if (i++ % 5 == 0) {privateQueueContext.performBlockAndWait({ NSThread.sleepForTimeInterval(0.7)})}
+            // if (i++ % 5 == 0) {privateQueueContext.performBlockAndWait({ NSThread.sleepForTimeInterval(0.7)})}
         }
      }
     
+
+
+
 
 
 }
