@@ -16,12 +16,13 @@ class NetClient {
 
     private let genericSession = NSURLSession.sharedSession()
     private let BASE_URL = "https://api.flickr.com/services/rest/"
-    private let METHOD_NAME = "flickr.photos.search"
+    private let METHOD_NAME_SEARCH = "flickr.photos.search"
     private let API_KEY = "263de36c553fc73f111b6634183cdb4f"
     private let SAFE_SEARCH = "1"
     private let EXTRAS = "url_m"
     private let DATA_FORMAT = "json"
     private let NO_JSON_CALLBACK = "1"
+    private let METHOD_NAME_COMMENTS = "flickr.photos.comments.getList"
 
     static let sharedInstance = NetClient()
     private init() {}
@@ -47,19 +48,19 @@ class NetClient {
     }
 
 
-    func initPhotoListSearch(region: MKCoordinateRegion, completionHandler: TaskRequestClosure) {
+    func initPhotoListSearch(desiredPage: Int, desiredPhotosPerPage: Int, region: MKCoordinateRegion, completionHandler: TaskRequestClosure) {
         let methodArguments = [
-                "method": METHOD_NAME,
+                "method": METHOD_NAME_SEARCH,
                 "api_key": API_KEY,
                 "bbox": getMapBoundingBoxString(region),
                 "safe_search": SAFE_SEARCH,
                 "extras": EXTRAS,
                 "format": DATA_FORMAT,
-                "per_page": 100,
-                "page": 1,
+                "per_page": desiredPhotosPerPage,
+                "page": desiredPage,
                 "nojsoncallback": NO_JSON_CALLBACK
             ]
-        loadSearchedFlickrPhotoList(methodArguments as! Dictionary<String,AnyObject>, completionHandler: completionHandler)
+        doFlickrAPICall(methodArguments as! Dictionary<String, AnyObject>, completionHandler: completionHandler)
     }
     private func getMapBoundingBoxString(region: MKCoordinateRegion) -> String {
         let latitude = region.center.latitude
@@ -75,7 +76,7 @@ class NetClient {
     
 
 
-    private func loadSearchedFlickrPhotoList(methodArguments: [String : AnyObject], completionHandler: TaskRequestClosure) {
+    private func doFlickrAPICall(methodArguments: Dictionary<String, AnyObject>, completionHandler: TaskRequestClosure) {
         let request = NSURLRequest(URL: NSURL(string: BASE_URL + NetClient.escapedParameters(methodArguments))!)
         let task = genericSession.dataTaskWithRequest(request, completionHandler: completionHandler)
         task.resume()
@@ -89,5 +90,16 @@ class NetClient {
         task.resume()
     }
 
+
+    func initCommentSearch(photoID: String, completionHandler: TaskRequestClosure) {
+        let methodArguments = [
+            "method": METHOD_NAME_COMMENTS,
+            "api_key": API_KEY,
+            "photo_id": photoID,
+            "format": DATA_FORMAT,
+            "nojsoncallback": NO_JSON_CALLBACK
+        ]
+        doFlickrAPICall(methodArguments, completionHandler: completionHandler)
+    }
 
 }

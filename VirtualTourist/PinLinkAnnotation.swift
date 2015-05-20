@@ -18,4 +18,20 @@ class PinLinkAnnotation: MKPointAnnotation, Printable {
         self.pinRef = pinRef
         super.init()
     }
+
+
+    func updateSubtitle() {
+
+        let totalNumPhotos = pinRef.totalAvailablePhotos
+        let numLoaded = pinRef.photos.count
+
+        var s: String
+        switch totalNumPhotos {
+        case 0: s = "No photos found"
+        case 1: s = "1 photo, tap to see"
+        default: s = "\(numLoaded) loaded of \(totalNumPhotos) photos, tap to see"
+        }
+        self.subtitle = s
+    }
+
  }

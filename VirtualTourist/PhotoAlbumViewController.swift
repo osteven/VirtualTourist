@@ -17,10 +17,10 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
 
     // MARK: - Properties
     var currentPin: Pin!
-    var currentAnnotation: MKPointAnnotation!
+    var currentAnnotation: PinLinkAnnotation!
 
     private var selectedIndexes = [NSIndexPath]()
-    private var kvoContext: UInt8 = 1   // requeired to be a var
+    private var kvoContext: UInt8 = 1   // required to be a var
 
     @IBOutlet weak var mapView: MKMapView!
     @IBOutlet weak var collectionView: UICollectionView!
@@ -49,6 +49,13 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
         deleteSelectedButton.enabled = false
     }
 
+    override func viewWillAppear(animated: Bool) {
+        super.viewWillAppear(animated)
+        //    selectedIndexes = [NSIndexPath]()       // unselect if coming back from detail
+        //deleteSelectedButton.enabled = false
+        //      collectionView.reloadData()
+    }
+
     override func viewDidAppear(animated: Bool) {
         super.viewDidAppear(animated)
 
@@ -58,27 +65,17 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
         pointAnnotation.subtitle = ""
 
         newCollectionButton.enabled = false
-        if let queue = currentPin.photoListLoader?.photoLoadQueue {
-            queue.addObserver(self, forKeyPath: "operationCount",
-                options: NSKeyValueObservingOptions.New, context: &kvoContext)
-            if queue.operationCount == 0 { newCollectionButton.enabled = true }
-        } else {
-            newCollectionButton.enabled = true
+        if let loader = currentPin.photoListLoader {
+            newCollectionButton.enabled = !loader.isLoadingPhotos
+            loader.batchPhotosLoadedClosure = batchPhotosLoadedClosure
         }
-
 
         mapView.addAnnotation(pointAnnotation)
         let span = MKCoordinateSpan(latitudeDelta: 0.001, longitudeDelta: 0.001)
         let region = MKCoordinateRegion(center: pointAnnotation.coordinate, span: span)
         self.mapView.centerCoordinate = pointAnnotation.coordinate
         self.mapView.setRegion(region, animated: true)
-    }
 
-    override func viewWillDisappear(animated: Bool) {
-        super.viewWillDisappear(animated)
-        if let queue = currentPin.photoListLoader?.photoLoadQueue {
-            queue.removeObserver(self, forKeyPath: "operationCount")
-        }
     }
 
 
@@ -96,11 +93,13 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
     }
 
     // MARK: - Actions
-    @IBAction func newCollectionAction(sender: UIBarButtonItem) { deleteAllPhotos() }
+    @IBAction func newCollectionAction(sender: UIBarButtonItem) {
+        deleteAllPhotos()
+        self.newCollectionButton.enabled = false
+        currentPin.photoListLoader!.load(uiReportingClosure, batchPhotosLoadedClosure: batchPhotosLoadedClosure)
+    }
 
     @IBAction func deleteSelectedAction(sender: UIBarButtonItem) { deleteSelectedPhotos() }
-
-    @IBAction func informationButton(sender: UIButton) { }
 
 
 
@@ -108,15 +107,9 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
 
     func photoLoadedNotification(notification: NSNotification) { collectionView.reloadData() }
 
-    // KVO: http://blog.scottlogic.com/2015/02/11/swift-kvo-alternatives.html
-    override func observeValueForKeyPath(keyPath: String, ofObject object: AnyObject,
-        change: [NSObject : AnyObject], context: UnsafeMutablePointer<Void>) {
-            if context != &kvoContext { return }
-            if let listLoader = currentPin.photoListLoader {
-                if listLoader.photoLoadQueue.operationCount == 0 {
-                    newCollectionButton.enabled = true
-                }
-            }
+
+    func batchPhotosLoadedClosure() {
+        dispatch_async(dispatch_get_main_queue(), { self.newCollectionButton.enabled = true })
     }
 
     private func configureCell(cell: PhotoCollectionViewCell, atIndexPath indexPath: NSIndexPath) {
@@ -133,8 +126,26 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
     private func deleteAllPhotos() {
         currentPin.deleteAllPhotos(sharedContext)
         CoreDataStackManager.sharedInstance.saveContext()
-        currentAnnotation!.subtitle = PhotoListLoader.numPhotosString(currentPin.photos.count)
+        currentAnnotation!.updateSubtitle()
+        selectedIndexes = [NSIndexPath]()
+        deleteSelectedButton.enabled = false
         collectionView.reloadData()
+    }
+
+
+    func launchInformationViewController(photo: Photo) {
+        let controller = self.storyboard?.instantiateViewControllerWithIdentifier("PhotoDetailViewController") as! PhotoDetailViewController
+        controller.photo = photo
+        self.navigationController?.pushViewController(controller, animated: true)
+   }
+
+
+    //TODO: error report
+    func uiReportingClosure(annotation: MKPointAnnotation, error: NSError?) -> Void {
+        if error != nil {
+            println("PhotoAlbumViewController Error: \(error)")
+            return
+        }
     }
 
 
@@ -151,28 +162,21 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
             sharedContext.deleteObject(photo)
         }
         CoreDataStackManager.sharedInstance.saveContext()
-        currentAnnotation!.subtitle = PhotoListLoader.numPhotosString(currentPin.photos.count)
 
+        currentAnnotation.updateSubtitle()
+
+        selectedIndexes = [NSIndexPath]()
         collectionView.performBatchUpdates({() -> Void in
             for indexPath in indexPathsToDelete {
                 self.collectionView.deleteItemsAtIndexPaths([indexPath])
             }
         }, completion: nil)
 
-        selectedIndexes = [NSIndexPath]()
         deleteSelectedButton.enabled = false
+        collectionView.reloadData()
     }
 
 
-    /*
-    // MARK: - Navigation
-
-    // In a storyboard-based application, you will often want to do a little preparation before navigation
-    override func prepareForSegue(segue: UIStoryboardSegue, sender: AnyObject?) {
-        // Get the new view controller using [segue destinationViewController].
-        // Pass the selected object to the new view controller.
-    }
-    */
 
     // MARK: UICollectionViewDataSource
 
@@ -184,6 +188,7 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
 
     func collectionView(collectionView: UICollectionView, cellForItemAtIndexPath indexPath: NSIndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCellWithReuseIdentifier(reuseIdentifier, forIndexPath: indexPath) as! PhotoCollectionViewCell
+        cell.parentViewController = self
 
         var photoImage = UIImage(named: "Placeholder")
         let photo = currentPin.photos[indexPath.row]
@@ -194,6 +199,7 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
             cell.activityIndicator.startAnimating()
         }
         cell.photoImageView.image = photoImage
+        cell.photo = photo
         configureCell(cell, atIndexPath: indexPath)
         return cell
     }

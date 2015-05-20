@@ -23,10 +23,12 @@ class Pin: NSManagedObject, Printable {
         static let Longitude = "longitude"
         static let LocationName = "locationName"
         static let Photos = "photos"
+        static let TotalAvailablePhotos = "totalAvailablePhotos"
     }
     static let entityName = "Pin"
 
 
+    @NSManaged var totalAvailablePhotos: Int
     @NSManaged var latitude: Double
     @NSManaged var longitude: Double
     @NSManaged var locationName: String
@@ -66,6 +68,7 @@ class Pin: NSManagedObject, Printable {
             self.locationName = ""
         }
         uuid = NSUUID().UUIDString
+        totalAvailablePhotos = 0
         ImageCache.sharedInstance.createStorageDirectory(uuid)
     }
 

@@ -15,24 +15,32 @@ class PhotoLoader {
 
     private let photo: Photo
     private let privateQueueContext: NSManagedObjectContext
+    private var currentSession: NSURLSession?
+    private var retryCount = 0
+    private let listLoader: PhotoListLoader
 
-
-    init(photo: Photo, privateQueueContext: NSManagedObjectContext, session: NSURLSession) {
-        //    println("PhotoLoader init thread:\(NSThread.currentThread().description)")
+    init(photo: Photo, privateQueueContext: NSManagedObjectContext, listLoader: PhotoListLoader) {
         self.privateQueueContext = privateQueueContext
         self.photo = photo
+        self.listLoader = listLoader
+    }
+
+    func load(session: NSURLSession) {
+        self.currentSession = session
         NetClient.sharedInstance.getOnePhotoImage(photo.urlString, session: session, completionHandler: loadingClosure)
     }
 
-
     func loadingClosure(data: NSData!, response: NSURLResponse!, error: NSError?) -> Void {
-        //println("\n\n\nloadingClosure thread:\(NSThread.currentThread().description)")
+        var image: UIImage?
         if error != nil {
-            println("PhotoLoader closure error=\(error)")
-            return
+            // sometimes I get a Resource Busy Error.
+            println("PhotoLoader closure error: \(error)")
+            image = UIImage(named: "FailedImage")
+
+        } else {
+            image = UIImage(data: data)
         }
 
-        let image = UIImage(data: data)
         privateQueueContext.performBlockAndWait({
             self.photo.photoImage = image
             var error: NSError? = nil
@@ -42,6 +50,7 @@ class PhotoLoader {
                 return
             }
         })
+        listLoader.numPhotosToLoad--
         dispatch_async(dispatch_get_main_queue(), {
             CoreDataStackManager.sharedInstance.saveContext()
             NSNotificationCenter.defaultCenter().postNotificationName(PhotoLoader.NOTIFICATION_PHOTO_LOADED, object: nil)

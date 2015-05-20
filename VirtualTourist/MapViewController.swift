@@ -113,7 +113,8 @@ class MapViewController: UIViewController, MKMapViewDelegate {
             let pointAnnotation = PinLinkAnnotation(pinRef: pin)
             pointAnnotation.coordinate = pin.locationCoordinate
             pointAnnotation.title = pin.locationName
-            pointAnnotation.subtitle = PhotoListLoader.numPhotosString(pin.photos.count)
+            //println("loading pins: \(pin)")
+            pointAnnotation.updateSubtitle()
             self.mapView.addAnnotation(pointAnnotation)
         }
 
@@ -144,7 +145,6 @@ class MapViewController: UIViewController, MKMapViewDelegate {
             let dictionary: [String: AnyObject] = [Pin.Keys.Latitude: touchMapCoordinate.latitude,
                 Pin.Keys.Longitude: touchMapCoordinate.longitude, Pin.Keys.LocationName: temporaryTitle]
 
-
             let pin = Pin(dictionary: dictionary, context: self.sharedContext)
             CoreDataStackManager.sharedInstance.saveContext()
 
@@ -156,16 +156,16 @@ class MapViewController: UIViewController, MKMapViewDelegate {
             mapView.addAnnotation(pointAnnotation)
             reverseGeocode(pointAnnotation)
             pin.photoListLoader = PhotoListLoader(forAnnotation: pointAnnotation,
-                inRegion: mapView.region, withUIClosure: uiReportingClosure)
+                inRegion: mapView.region)
+            pin.photoListLoader!.load(uiReportingClosure, batchPhotosLoadedClosure: nil)
         }
     }
 
 
     //TODO: error report
     func uiReportingClosure(annotation: MKPointAnnotation, error: NSError?) -> Void {
-        //println("uiReportingClosure thread:\(NSThread.currentThread().description)")
         if error != nil {
-            println("Error: \(error)")
+            println("MapViewController Error: \(error)")
             return
         }
      }
@@ -204,15 +204,23 @@ class MapViewController: UIViewController, MKMapViewDelegate {
 
 
     func mapView(mapView: MKMapView!, annotationView: MKAnnotationView, calloutAccessoryControlTapped control: UIControl) {
-        if control == annotationView.rightCalloutAccessoryView {
+        if control != annotationView.rightCalloutAccessoryView { return }
 
-            let controller = self.storyboard?.instantiateViewControllerWithIdentifier("PhotoAlbumViewController") as! PhotoAlbumViewController
-
-            controller.currentAnnotation = annotationView.annotation as! MKPointAnnotation
-            controller.currentPin = (annotationView.annotation as! PinLinkAnnotation).pinRef
-            self.navigationController?.pushViewController(controller, animated: true)
+        let selectedPin = (annotationView.annotation as! PinLinkAnnotation).pinRef
+        if selectedPin.photoListLoader == nil {
+            /* if the pin was loaded from the database, the photos were too and there is no loader yet.  You 
+                might need one if the user selects "New Collection"
+            */
+            selectedPin.photoListLoader = PhotoListLoader(forAnnotation: annotationView.annotation as! PinLinkAnnotation,
+                inRegion: mapView.region)
         }
+
+        let controller = self.storyboard?.instantiateViewControllerWithIdentifier("PhotoAlbumViewController") as! PhotoAlbumViewController
+        controller.currentAnnotation = annotationView.annotation as! PinLinkAnnotation
+        controller.currentPin = selectedPin
+        self.navigationController?.pushViewController(controller, animated: true)
     }
+
 
     func mapView(mapView: MKMapView!, regionDidChangeAnimated animated: Bool) {
         saveMapRegion()

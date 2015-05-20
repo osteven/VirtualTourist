@@ -19,13 +19,16 @@ class Photo: NSManagedObject, Printable {
     struct Keys {
         static let Title = "title"
         static let URLString = "url_m"
+        static let ID = "id"
     }
     static let entityName = "Photo"
 
+    @NSManaged var id: String
     @NSManaged var title: String
     @NSManaged var urlString: String
     @NSManaged var location: Pin
     @NSManaged var filePath: String?
+    @NSManaged var comments: [Comment]
 
 
     override var description: String {
@@ -61,6 +64,11 @@ class Photo: NSManagedObject, Printable {
             self.urlString = urlString
         } else {
             self.urlString = ""
+        }
+        if let id = dictionary[Keys.ID] as? String {
+            self.id = id
+        } else {
+            self.id = ""
         }
         self.location = pin
         self.filePath = nil
