@@ -30,40 +30,27 @@ class PhotoDetailViewController: UIViewController {
         photoImageView.image = photo.photoImage
         titleLabel.text = photo.title
         if photo.comments.count == 0 {
-            CommentListLoader(photo: photo).load(commentsLoadedClosure)
-            commentsTableView.hidden = true
-        } else {
-            commentsTableView.hidden = false
+            CommentListLoader(photo: photo).fetchFlickrCommentList(commentsLoadedClosure)
         }
     }
 
 
     // MARK: - Comments Loaded
     func commentsLoadedClosure() {
-        println("commentsLoadedClosure")
-        println("photo=\(photo)")
-        println("photo.comments=\(photo.comments)")
         commentsTableView.reloadData()
-        commentsTableView.hidden = false
     }
 
 
 
     // MARK: - UITableViewDataSource support
     func tableView(tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        println("numberOfRowsInSection: \(photo.comments.count)")
         return photo.comments.count
     }
 
 
     func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
-        println("cellForRowAtIndexPath")
         let cell = tableView.dequeueReusableCellWithIdentifier("CommentCell") as? UITableViewCell
-        println("got cell")
         let comment = photo.comments[indexPath.row]
-        println("got comment:\(comment)")
-        println(".....comment:\(comment.authorName)")
-
 
         cell!.textLabel?.text = comment.authorName + " " + comment.getDateAsString()
         cell!.detailTextLabel?.text = comment.content

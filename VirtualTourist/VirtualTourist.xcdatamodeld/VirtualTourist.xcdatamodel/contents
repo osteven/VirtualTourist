@@ -3,15 +3,14 @@
     <entity name="Comment" representedClassName="Comment" syncable="YES">
         <attribute name="authorName" attributeType="String" syncable="YES"/>
         <attribute name="content" attributeType="String" syncable="YES"/>
-        <attribute name="dateCreated" attributeType="Date" syncable="YES"/>
-        <relationship name="photo" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Photo" inverseName="comments" inverseEntity="Photo" syncable="YES"/>
+        <attribute name="dateCreated" optional="YES" attributeType="Date" syncable="YES"/>
+        <attribute name="photoID" attributeType="String" syncable="YES"/>
     </entity>
     <entity name="Photo" representedClassName="Photo" syncable="YES">
         <attribute name="filePath" optional="YES" attributeType="String" syncable="YES"/>
         <attribute name="id" attributeType="String" syncable="YES"/>
         <attribute name="title" attributeType="String" syncable="YES"/>
         <attribute name="urlString" attributeType="String" syncable="YES"/>
-        <relationship name="comments" toMany="YES" deletionRule="Cascade" destinationEntity="Comment" inverseName="photo" inverseEntity="Comment" syncable="YES"/>
         <relationship name="location" maxCount="1" deletionRule="Nullify" destinationEntity="Pin" inverseName="photos" inverseEntity="Pin" syncable="YES"/>
     </entity>
     <entity name="Pin" representedClassName="Pin" syncable="YES">
@@ -23,8 +22,8 @@
         <relationship name="photos" toMany="YES" deletionRule="Cascade" ordered="YES" destinationEntity="Photo" inverseName="location" inverseEntity="Photo" syncable="YES"/>
     </entity>
     <elements>
-        <element name="Comment" positionX="198" positionY="-144" width="128" height="105"/>
-        <element name="Photo" positionX="27" positionY="-243" width="128" height="135"/>
+        <element name="Comment" positionX="198" positionY="-144" width="128" height="103"/>
+        <element name="Photo" positionX="27" positionY="-243" width="128" height="118"/>
         <element name="Pin" positionX="-162" positionY="-342" width="128" height="135"/>
     </elements>
 </model>

@@ -18,6 +18,7 @@ import CoreData
 
 class Pin: NSManagedObject, Printable {
 
+    // MARK: - Properties
     struct Keys {
         static let Latitude = "latitude"
         static let Longitude = "longitude"
@@ -35,7 +36,7 @@ class Pin: NSManagedObject, Printable {
     @NSManaged var uuid: String
     @NSManaged var photos: [Photo]
 
-    var photoListLoader: PhotoListLoader?
+    var photoListFetcher: PhotoListFetcher?
 
 
     override var description: String { return locationName + ":\(photos.count) photos" }
@@ -44,6 +45,7 @@ class Pin: NSManagedObject, Printable {
     }
 
 
+    // MARK: - Init
     override init(entity: NSEntityDescription, insertIntoManagedObjectContext context: NSManagedObjectContext?) {
         super.init(entity: entity, insertIntoManagedObjectContext: context)
     }
@@ -72,9 +74,11 @@ class Pin: NSManagedObject, Printable {
         ImageCache.sharedInstance.createStorageDirectory(uuid)
     }
 
+    // MARK: - Delete
     func deleteAllPhotos(context: NSManagedObjectContext) {
         for photo in photos {
-            photo.photoImage = nil          // delete the disk file
+            photo.deleteComments(context)
+            photo.photoImage = nil          // the cache deletes the disk file
             context.deleteObject(photo)
         }
     }

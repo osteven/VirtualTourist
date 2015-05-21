@@ -1,51 +1,48 @@
 //
-//  PhotoListLoader.swift
+//  PhotoListFetcher.swift
 //  VirtualTourist
 //
 //  Created by Steven O'Toole on 5/14/15.
 //  Copyright (c) 2015 Steven O'Toole. All rights reserved.
 //
 
-import Foundation
 import CoreData
 import MapKit
 
 
 public typealias UIReportingClosure = (annotation: MKPointAnnotation, error: NSError?) -> Void
-public typealias BatchPhotosLoadedClosure = () -> Void
+public typealias BatchPhotosFetchedClosure = () -> Void
 
 
-class PhotoListLoader: NSObject {
+class PhotoListFetcher: NSObject {
 
     // MARK: - Properties
-    var batchPhotosLoadedClosure: BatchPhotosLoadedClosure?
-    var isLoadingPhotos = false
-
+    var batchPhotosFetchedClosure: BatchPhotosFetchedClosure?
+    var isFetchingPhotos = false
 
     private let DESIRED_PHOTOS_PER_PAGE = 21
     private let pinAnnotation: PinLinkAnnotation
     private let inRegion: MKCoordinateRegion
-    private var kvoContext: UInt8 = 1   // required to be a var
     private var uiReportingClosure: UIReportingClosure?
     private var totalPhotos: Int = 0
     private var totalPages: Int = 0
     private var perPage: Int = 0
     private var currentPage: Int = 0
-    private var _numPhotosToLoad: Int = 0
+    private var _numPhotosToFetch: Int = 0
 
 
-    var numPhotosToLoad: Int {
-        get { return _numPhotosToLoad }
+    var numPhotosToFetch: Int {
+        get { return _numPhotosToFetch }
         set { /*    
             `   This mechanism exists to let the UI know when the queue is finished loading all
                 photos in the batch.  I tried using KVO and NSOperationQueue.operationCount to
                 signal this, but it was not reliable.
                 */
             if newValue < 0 { return }
-            _numPhotosToLoad = newValue
-            if isLoadingPhotos && _numPhotosToLoad == 0 {
-                isLoadingPhotos = false
-                if batchPhotosLoadedClosure != nil { batchPhotosLoadedClosure!() }
+            _numPhotosToFetch = newValue
+            if isFetchingPhotos && _numPhotosToFetch == 0 {
+                isFetchingPhotos = false
+                if batchPhotosFetchedClosure != nil { batchPhotosFetchedClosure!() }
                 dispatch_async(dispatch_get_main_queue(), { self.pinAnnotation.updateSubtitle() })
             }
         }
@@ -67,7 +64,7 @@ class PhotoListLoader: NSObject {
 
     // MARK: - Loading chain
 
-    func load(withUIClosure: UIReportingClosure, batchPhotosLoadedClosure: BatchPhotosLoadedClosure?) {
+    func fetchFlickrPhotoList(withUIClosure: UIReportingClosure, batchPhotosFetchedClosure: BatchPhotosFetchedClosure?) {
         var desiredPage = 1
         if (totalPages > 0) {
             // not the first time we have loaded, get the next page
@@ -75,8 +72,8 @@ class PhotoListLoader: NSObject {
             if desiredPage > totalPages { desiredPage = 1 }
         }
         self.uiReportingClosure = withUIClosure
-        self.batchPhotosLoadedClosure = batchPhotosLoadedClosure
-        NetClient.sharedInstance.initPhotoListSearch(desiredPage, desiredPhotosPerPage: DESIRED_PHOTOS_PER_PAGE,
+        self.batchPhotosFetchedClosure = batchPhotosFetchedClosure
+        NetClient.sharedInstance.initFlickrPhotoListSearch(desiredPage, desiredPhotosPerPage: DESIRED_PHOTOS_PER_PAGE,
             region: inRegion, completionHandler: self.searchClosure)
     }
 
@@ -93,7 +90,7 @@ class PhotoListLoader: NSObject {
         if parsingError == nil {
             if let photosDictionary = parsedResult.valueForKey("photos") as? [String:AnyObject] {
                 // this closure runs in a background thread, so I have to access the data on a private queue
-                self.privateQueueContext.performBlock( { self.gotNetResponse(photosDictionary) })
+                self.privateQueueContext.performBlock( { self.gotFlickrResponse(photosDictionary) })
                 return
             }
         }
@@ -105,8 +102,7 @@ class PhotoListLoader: NSObject {
     }
 
 
-    private func gotNetResponse(photosDictionary: [String:AnyObject]) {
-        //println("gotNetResponse thread:\(NSThread.currentThread().description)")
+    private func gotFlickrResponse(photosDictionary: [String:AnyObject]) {
         if let totalPages = photosDictionary["pages"] as? Int {
             self.totalPages = totalPages
          }
@@ -125,9 +121,7 @@ class PhotoListLoader: NSObject {
 
 
     private func parsePhotoListArray(photosArray: [[String: AnyObject]]) {
-        //    println("parsePhotoListArray thread:\(NSThread.currentThread().description)")
-
-        let photoLoadQueue = NSOperationQueue()
+        let photoFetchQueue = NSOperationQueue()
 
         var error: NSError? = nil
         let objectID = pinAnnotation.pinRef.objectID
@@ -138,7 +132,6 @@ class PhotoListLoader: NSObject {
         }
         privateQPin.totalAvailablePhotos = self.totalPhotos
 
-        //  println("photosArray:\(photosArray)")
         for aPhotoDictionary in photosArray {
             let photo = Photo(dictionary: aPhotoDictionary, pin: privateQPin, context: privateQueueContext)
         }
@@ -156,21 +149,21 @@ class PhotoListLoader: NSObject {
         if privateQPin.photos.count == 0 { return }
 
 
-        // download all photos from the list, max 1 at a time (got Resource Busy Error when I tried 2 or 3)
-        photoLoadQueue.maxConcurrentOperationCount = 1
-        let session = NSURLSession(configuration: NSURLSessionConfiguration.defaultSessionConfiguration(), delegate: nil, delegateQueue: photoLoadQueue)
+        // we will download all photos from the list, max 1 at a time (got Resource Busy Error when I tried 2 or 3)
+        photoFetchQueue.maxConcurrentOperationCount = 1
+        let session = NSURLSession(configuration: NSURLSessionConfiguration.defaultSessionConfiguration(), delegate: nil, delegateQueue: photoFetchQueue)
 
 
-        var loaders = [PhotoLoader]()
+        var fetchers = [PhotoFetcher]()
         privateQueueContext.performBlockAndWait({
             for photo in privateQPin.photos {
                 if photo.urlString == "" { continue }
-                loaders.append(PhotoLoader(photo: photo, privateQueueContext: self.privateQueueContext, listLoader: self))
+                fetchers.append(PhotoFetcher(photo: photo, privateQueueContext: self.privateQueueContext, listFetcher: self))
             }
         })
-        isLoadingPhotos = true
-        numPhotosToLoad = loaders.count
-        privateQueueContext.performBlock({ for loader in loaders { loader.load(session) } })
+        isFetchingPhotos = true
+        numPhotosToFetch = fetchers.count     // keep track so we can update the UI when they are all done
+        privateQueueContext.performBlock({ for fetcher in fetchers { fetcher.fetchPhotoFromFlickr(session) } })
      }
     
 

@@ -15,8 +15,9 @@ class MapViewController: UIViewController, MKMapViewDelegate {
     // MARK: - Properties
     @IBOutlet weak var mapView: MKMapView!
 
-    let longPressGesture = UILongPressGestureRecognizer()
-    let geoCoder = CLGeocoder()
+    private let longPressGesture = UILongPressGestureRecognizer()
+    private let geoCoder = CLGeocoder()
+    private var savedMapRegionAtStartup: MKCoordinateRegion?
 
     var filePath : String {
         let manager = NSFileManager.defaultManager()
@@ -28,26 +29,20 @@ class MapViewController: UIViewController, MKMapViewDelegate {
         return CoreDataStackManager.sharedInstance.managedObjectContext!
      }
 
-    private var loadPinCounter = 0
-    private var savedMapRegionAtStartup: MKCoordinateRegion?
-    //    private var currentPin: PinLinkAnnotation? = nil
+
 
     // MARK: - Life Cycle
 
-    required init(coder aDecoder: NSCoder) {
-        super.init(coder: aDecoder)
-    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        //debugloadPhotos()
         // have to capture this at startup, because loading map pins overwrites it
         savedMapRegionAtStartup = getSavedMapRegion()
 
         longPressGesture.addTarget(self, action: "handleLongPress:")
         mapView.addGestureRecognizer(longPressGesture)
-        self.loadPins()
+        self.loadPinsFromDatabase()
         self.mapView.setRegion(self.savedMapRegionAtStartup!, animated: true)
     }
 
@@ -56,82 +51,6 @@ class MapViewController: UIViewController, MKMapViewDelegate {
         super.viewWillAppear(animated)
         navigationController?.navigationBarHidden = true
     }
-
-    func saveMapRegion() {
-        let dictionary = [
-            "latitude" : mapView.region.center.latitude,
-            "longitude" : mapView.region.center.longitude,
-            "latitudeDelta" : mapView.region.span.latitudeDelta,
-            "longitudeDelta" : mapView.region.span.longitudeDelta
-        ]
-        NSKeyedArchiver.archiveRootObject(dictionary, toFile: filePath)
-    }
-
-    func getSavedMapRegion() -> MKCoordinateRegion {
-        if let regionDictionary = NSKeyedUnarchiver.unarchiveObjectWithFile(filePath) as? [String : AnyObject] {
-
-            let longitude = regionDictionary["longitude"] as! CLLocationDegrees
-            let latitude = regionDictionary["latitude"] as! CLLocationDegrees
-            let center = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-
-            let longitudeDelta = regionDictionary["longitudeDelta"] as! CLLocationDegrees
-            let latitudeDelta = regionDictionary["latitudeDelta"] as! CLLocationDegrees
-            let span = MKCoordinateSpan(latitudeDelta: latitudeDelta, longitudeDelta: longitudeDelta)
-
-            return MKCoordinateRegion(center: center, span: span)
-        } else {
-            let center = CLLocationCoordinate2D(latitude: mapView.region.center.latitude, longitude: mapView.region.center.longitude)
-            let span = MKCoordinateSpan(latitudeDelta: mapView.region.span.latitudeDelta, longitudeDelta: mapView.region.span.longitudeDelta)
-            return MKCoordinateRegion(center: center, span: span)
-        }
-    }
-
-
-
-
-    private func debugloadPhotos() {
-        println("debugloadPhotos thread:\(NSThread.currentThread().description)")
-        let error: NSErrorPointer = nil
-        let fetchRequest = NSFetchRequest(entityName: "Photo")
-        let results = self.sharedContext.executeFetchRequest(fetchRequest, error: error)
-        if error != nil { println("Error in debugloadPhotos(): \(error)") }
-        for photo in results! { println("\(photo)") }
-    }
-
-    private func loadPins() {
-        //println("loadPins thread:\(NSThread.currentThread().description)")
-        let error: NSErrorPointer = nil
-        let fetchRequest = NSFetchRequest(entityName: "Pin")
-
-        let results = self.sharedContext.executeFetchRequest(fetchRequest, error: error)
-        //println("loadPins: \(results)")
-        if error != nil {
-            println("Error in loadPins(): \(error)")
-            return
-        }
-        for pin in results as! [Pin] {
-            let pointAnnotation = PinLinkAnnotation(pinRef: pin)
-            pointAnnotation.coordinate = pin.locationCoordinate
-            pointAnnotation.title = pin.locationName
-            //println("loading pins: \(pin)")
-            pointAnnotation.updateSubtitle()
-            self.mapView.addAnnotation(pointAnnotation)
-        }
-
-        //      self.clearAllPins()
-   }
-
-    private func clearAllPins() {
-        let annotationArray = self.mapView.annotations.reverse()
-        for annotation in annotationArray  {
-            let plAnnotation = annotation as! PinLinkAnnotation
-            self.sharedContext.deleteObject(plAnnotation.pinRef)
-            self.mapView.removeAnnotation(plAnnotation)
-        }
-        CoreDataStackManager.sharedInstance.saveContext()
-    }
-
-
 
     // MARK: - Map support
 
@@ -148,32 +67,22 @@ class MapViewController: UIViewController, MKMapViewDelegate {
             let pin = Pin(dictionary: dictionary, context: self.sharedContext)
             CoreDataStackManager.sharedInstance.saveContext()
 
+            // title and subtitle will be updated after the reverse geocode and photo searches
             let pointAnnotation = PinLinkAnnotation(pinRef: pin)
             pointAnnotation.coordinate = touchMapCoordinate
-            pointAnnotation.title = title
+            pointAnnotation.title = temporaryTitle
             pointAnnotation.subtitle = "tap to see photos"
 
             mapView.addAnnotation(pointAnnotation)
             reverseGeocode(pointAnnotation)
-            pin.photoListLoader = PhotoListLoader(forAnnotation: pointAnnotation,
+            pin.photoListFetcher = PhotoListFetcher(forAnnotation: pointAnnotation,
                 inRegion: mapView.region)
-            pin.photoListLoader!.load(uiReportingClosure, batchPhotosLoadedClosure: nil)
+            pin.photoListFetcher!.fetchFlickrPhotoList(uiReportingClosure, batchPhotosFetchedClosure: nil)
         }
     }
 
 
-    //TODO: error report
-    func uiReportingClosure(annotation: MKPointAnnotation, error: NSError?) -> Void {
-        if error != nil {
-            println("MapViewController Error: \(error)")
-            return
-        }
-     }
-
-
-
     func mapView(mapView: MKMapView!, viewForAnnotation annotation: MKAnnotation!) -> MKAnnotationView! {
-
         let reuseId = "pin"
         var pinView = mapView.dequeueReusableAnnotationViewWithIdentifier(reuseId) as? MKPinAnnotationView
         if pinView == nil {
@@ -186,19 +95,27 @@ class MapViewController: UIViewController, MKMapViewDelegate {
         } else {
             pinView!.annotation = annotation
         }
-
         return pinView
     }
 
 
-
-
-
+    // Handle pin dragged.  Like dropping a new pin, except the coordinate is already set.
     func mapView(mapView: MKMapView!, annotationView view: MKAnnotationView!, didChangeDragState newState: MKAnnotationViewDragState, fromOldState oldState: MKAnnotationViewDragState) {
         if newState == .Ending {
-            reverseGeocode(view.annotation as! PinLinkAnnotation)
-
-            // TODO: reload photos
+            let pinLinkAnnotation = view.annotation as! PinLinkAnnotation
+            let pin = (view.annotation as! PinLinkAnnotation).pinRef
+            pin.latitude = pinLinkAnnotation.coordinate.latitude
+            pin.longitude = pinLinkAnnotation.coordinate.longitude
+            pin.locationName = "\(pinLinkAnnotation.coordinate.latitude), \(pinLinkAnnotation.coordinate.longitude)"
+            pin.totalAvailablePhotos = 0
+            pin.deleteAllPhotos(sharedContext)
+            CoreDataStackManager.sharedInstance.saveContext()
+            pinLinkAnnotation.title = pin.locationName
+            pinLinkAnnotation.subtitle = "tap to see photos"
+            reverseGeocode(pinLinkAnnotation)
+            // set a new fetcher for the new region
+            pin.photoListFetcher = PhotoListFetcher(forAnnotation: pinLinkAnnotation, inRegion: mapView.region)
+            pin.photoListFetcher!.fetchFlickrPhotoList(uiReportingClosure, batchPhotosFetchedClosure: nil)
         }
     }
 
@@ -207,11 +124,11 @@ class MapViewController: UIViewController, MKMapViewDelegate {
         if control != annotationView.rightCalloutAccessoryView { return }
 
         let selectedPin = (annotationView.annotation as! PinLinkAnnotation).pinRef
-        if selectedPin.photoListLoader == nil {
+        if selectedPin.photoListFetcher == nil {
             /* if the pin was loaded from the database, the photos were too and there is no loader yet.  You 
                 might need one if the user selects "New Collection"
             */
-            selectedPin.photoListLoader = PhotoListLoader(forAnnotation: annotationView.annotation as! PinLinkAnnotation,
+            selectedPin.photoListFetcher = PhotoListFetcher(forAnnotation: annotationView.annotation as! PinLinkAnnotation,
                 inRegion: mapView.region)
         }
 
@@ -228,11 +145,9 @@ class MapViewController: UIViewController, MKMapViewDelegate {
 
 
     private func reverseGeocode(annotation: PinLinkAnnotation) {
-        //println("reverseGeocode1 thread:\(NSThread.currentThread().description)")
         UIApplication.sharedApplication().networkActivityIndicatorVisible = true
         let location = CLLocation(latitude: annotation.coordinate.latitude, longitude: annotation.coordinate.longitude)
         geoCoder.reverseGeocodeLocation(location, completionHandler: {(placemarks, error) in
-            //println("reverseGeocode2 thread:\(NSThread.currentThread().description)")
             UIApplication.sharedApplication().networkActivityIndicatorVisible = false
             if error != nil  { /* do nothing, leave the latitude and logitude there */ return }
 
@@ -241,15 +156,11 @@ class MapViewController: UIViewController, MKMapViewDelegate {
 
             let placeMark = pmArray![0]
             let formattedAddressLines = placeMark.addressDictionary["FormattedAddressLines"] as? NSArray
-            //println("reverseGeocode3 thread:\(NSThread.currentThread().description)")
 
             if let addressStr = formattedAddressLines?.componentsJoinedByString(" ") {
-                //println("updating pin addressStr:\(addressStr)")
-
                 annotation.pinRef.locationName = addressStr
                 annotation.title = addressStr
                 CoreDataStackManager.sharedInstance.saveContext()
-
             }
         })
     }
@@ -257,6 +168,62 @@ class MapViewController: UIViewController, MKMapViewDelegate {
 
 
 
+    // MARK: - Utilities
+
+    func uiReportingClosure(annotation: MKPointAnnotation, error: NSError?) -> Void {
+        if error != nil {
+            UICommon.errorAlert("Flickr API Failure", message: "Could not fetch photos from Flickr\n\n[\(error!.localizedDescription)]", inViewController: self)
+        }
+    }
+
+    private func saveMapRegion() {
+        let dictionary = [
+            "latitude" : mapView.region.center.latitude,
+            "longitude" : mapView.region.center.longitude,
+            "latitudeDelta" : mapView.region.span.latitudeDelta,
+            "longitudeDelta" : mapView.region.span.longitudeDelta
+        ]
+        NSKeyedArchiver.archiveRootObject(dictionary, toFile: filePath)
+    }
+
+    private func getSavedMapRegion() -> MKCoordinateRegion {
+        if let regionDictionary = NSKeyedUnarchiver.unarchiveObjectWithFile(filePath) as? [String : AnyObject] {
+            let longitude = regionDictionary["longitude"] as! CLLocationDegrees
+            let latitude = regionDictionary["latitude"] as! CLLocationDegrees
+            let center = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+
+            let longitudeDelta = regionDictionary["longitudeDelta"] as! CLLocationDegrees
+            let latitudeDelta = regionDictionary["latitudeDelta"] as! CLLocationDegrees
+            let span = MKCoordinateSpan(latitudeDelta: latitudeDelta, longitudeDelta: longitudeDelta)
+
+            return MKCoordinateRegion(center: center, span: span)
+        } else {
+            let center = CLLocationCoordinate2D(latitude: mapView.region.center.latitude, longitude: mapView.region.center.longitude)
+            let span = MKCoordinateSpan(latitudeDelta: mapView.region.span.latitudeDelta, longitudeDelta: mapView.region.span.longitudeDelta)
+            return MKCoordinateRegion(center: center, span: span)
+        }
+    }
+    
+
+    private func loadPinsFromDatabase() {
+        var error: NSError? = nil
+        let fetchRequest = NSFetchRequest(entityName: "Pin")
+
+        let results = self.sharedContext.executeFetchRequest(fetchRequest, error: &error)
+        if error != nil {
+            UICommon.errorAlert("Database Failure", message: "Could not load the saved pins\n\n[\(error!.localizedDescription)]", inViewController: self)
+            return
+        }
+        for pin in results as! [Pin] {
+            let pointAnnotation = PinLinkAnnotation(pinRef: pin)
+            pointAnnotation.coordinate = pin.locationCoordinate
+            pointAnnotation.title = pin.locationName
+            pointAnnotation.updateSubtitle()
+            self.mapView.addAnnotation(pointAnnotation)
+        }
+    }
+    
+    
 
 
 

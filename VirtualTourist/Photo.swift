@@ -28,11 +28,12 @@ class Photo: NSManagedObject, Printable {
     @NSManaged var urlString: String
     @NSManaged var location: Pin
     @NSManaged var filePath: String?
-    @NSManaged var comments: [Comment]
+    // I manually manage the comment relationship, see notes in Comment.swift
+    var comments = [Comment]()
 
 
     override var description: String {
-        return fileName + ":" + title + "|" + location.description
+        return id + ":" + fileName + ":" + title
     }
 
     var photoImage: UIImage? {
@@ -75,8 +76,13 @@ class Photo: NSManagedObject, Printable {
     }
 
 
+    // MARK: - Delete Comments
 
-
+    func deleteComments(sharedContext: NSManagedObjectContext) {
+        for comment in comments {
+            sharedContext.deleteObject(comment)
+        }
+    }
 
 
     

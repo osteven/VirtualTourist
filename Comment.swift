@@ -11,6 +11,22 @@ import CoreData
 @objc(Comment)
 
 class Comment: NSManagedObject, Printable {
+    /*
+    Note: I tried for several days to get Photo to be in a one-to-many relationship with Comment.  I
+    could not get it to work  I was able to save the comments and the related photo.  But anytime I 
+    tried to access a photo.comments, it would crash:
+    2015-05-20 12:19:13.351 VirtualTourist[19199:7108689] -[__NSCFSet objectAtIndex:]: unrecognized selector sent to instance 0x7fc6db541e20
+    2015-05-20 12:19:13.357 VirtualTourist[19199:7108689] *** Terminating app due to uncaught exception 'NSInvalidArgumentException', reason: '-[__NSCFSet objectAtIndex:]: unrecognized selector sent to instance 0x7fc6db541e20'
+
+    Rather than spend any more time debugging, I am manully managing the relationship.  The comment holds a 
+    photoID as a foreign key.  The CommentListLoader tries to fetch all comments with a matching photoID.  
+    If it doesn't find any, it queries the Flickr API.  If it finds some there, it saves Comment objects 
+    with the appropriate photoID.
+
+    */
+
+
+
 
     // MARK: - Properties
     struct Keys {
@@ -20,10 +36,11 @@ class Comment: NSManagedObject, Printable {
     }
     static let entityName = "Comment"
 
-    @NSManaged var photo: Photo?
+    var photo: Photo?
     @NSManaged var authorName: String
-    @NSManaged var dateCreated: NSDate
+    @NSManaged var dateCreated: NSDate?
     @NSManaged var content: String
+    @NSManaged var photoID: String
 
     override var description: String {
         return content
@@ -40,7 +57,7 @@ class Comment: NSManagedObject, Printable {
         super.init(entity: entity, insertIntoManagedObjectContext: context)
     }
 
-    init(dictionary: [String : AnyObject], context: NSManagedObjectContext) {
+    init(dictionary: [String : AnyObject], photo: Photo, context: NSManagedObjectContext) {
         let entity =  NSEntityDescription.entityForName(Comment.entityName, inManagedObjectContext: context)!
         super.init(entity: entity, insertIntoManagedObjectContext: context)
         if let authorName = dictionary[Keys.AuthorName] as? String {
@@ -57,30 +74,17 @@ class Comment: NSManagedObject, Printable {
             let timeInterval = NSTimeInterval((numStr as NSString).doubleValue)
             dateCreated = NSDate(timeIntervalSince1970: timeInterval)
         } else {
-            dateCreated = NSDate(timeIntervalSince1970: 0)
+            dateCreated = nil
         }
+        self.photo = photo
+        photoID = photo.id
     }
 
 
     func getDateAsString() -> String {
-        println(".....date:\(self.dateCreated)")
-        return dateFormatter.stringFromDate(dateCreated)
+        if dateCreated == nil { return "" }
+        return dateFormatter.stringFromDate(dateCreated!)
     }
 
 }
 
-/*
-
-
-{ "id": "335003-14950215319-72157646965665487",
-"author": "126854276@N02", 
-"authorname": "myeshs_hall", 
-"iconserver": "2945", 
-"iconfarm": 3, 
-"datecreate": "1410200806", 
-"permalink": "https:\/\/www.flickr.com\/photos\/jorgeq82\/14950215319\/#comment72157646965665487", 
-"path_alias": "", 
-"realname": "", 
-"_content": "that looks so much fun there" },
-
-*/

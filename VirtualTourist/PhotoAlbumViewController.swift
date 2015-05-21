@@ -10,7 +10,6 @@ import UIKit
 import MapKit
 import CoreData
 
-let reuseIdentifier = "PhotoAlbumCell"
 
 class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
 
@@ -20,7 +19,7 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
     var currentAnnotation: PinLinkAnnotation!
 
     private var selectedIndexes = [NSIndexPath]()
-    private var kvoContext: UInt8 = 1   // required to be a var
+    private let REUSE_IDENTIFIER = "PhotoAlbumCell"
 
     @IBOutlet weak var mapView: MKMapView!
     @IBOutlet weak var collectionView: UICollectionView!
@@ -37,8 +36,8 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
     required init(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
         NSNotificationCenter.defaultCenter().addObserver(self,
-            selector: "photoLoadedNotification:",
-            name: PhotoLoader.NOTIFICATION_PHOTO_LOADED, object: nil)
+            selector: "photoFetchedNotification:",
+            name: PhotoFetcher.NOTIFICATION_PHOTO_FETCHED, object: nil)
     }
 
     deinit { NSNotificationCenter.defaultCenter().removeObserver(self) }
@@ -47,13 +46,6 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
         super.viewDidLoad()
         navigationController?.navigationBarHidden = false
         deleteSelectedButton.enabled = false
-    }
-
-    override func viewWillAppear(animated: Bool) {
-        super.viewWillAppear(animated)
-        //    selectedIndexes = [NSIndexPath]()       // unselect if coming back from detail
-        //deleteSelectedButton.enabled = false
-        //      collectionView.reloadData()
     }
 
     override func viewDidAppear(animated: Bool) {
@@ -65,9 +57,9 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
         pointAnnotation.subtitle = ""
 
         newCollectionButton.enabled = false
-        if let loader = currentPin.photoListLoader {
-            newCollectionButton.enabled = !loader.isLoadingPhotos
-            loader.batchPhotosLoadedClosure = batchPhotosLoadedClosure
+        if let fetcher = currentPin.photoListFetcher {
+            newCollectionButton.enabled = !fetcher.isFetchingPhotos
+            fetcher.batchPhotosFetchedClosure = batchPhotosFetchedClosure
         }
 
         mapView.addAnnotation(pointAnnotation)
@@ -96,7 +88,7 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
     @IBAction func newCollectionAction(sender: UIBarButtonItem) {
         deleteAllPhotos()
         self.newCollectionButton.enabled = false
-        currentPin.photoListLoader!.load(uiReportingClosure, batchPhotosLoadedClosure: batchPhotosLoadedClosure)
+        currentPin.photoListFetcher!.fetchFlickrPhotoList(uiReportingClosure, batchPhotosFetchedClosure: batchPhotosFetchedClosure)
     }
 
     @IBAction func deleteSelectedAction(sender: UIBarButtonItem) { deleteSelectedPhotos() }
@@ -105,10 +97,10 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
 
     // MARK: - Utilities
 
-    func photoLoadedNotification(notification: NSNotification) { collectionView.reloadData() }
+    func photoFetchedNotification(notification: NSNotification) { collectionView.reloadData() }
 
 
-    func batchPhotosLoadedClosure() {
+    func batchPhotosFetchedClosure() {
         dispatch_async(dispatch_get_main_queue(), { self.newCollectionButton.enabled = true })
     }
 
@@ -121,7 +113,6 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
             cell.informationButton.hidden = true
         }
     }
-
 
     private func deleteAllPhotos() {
         currentPin.deleteAllPhotos(sharedContext)
@@ -140,11 +131,10 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
    }
 
 
-    //TODO: error report
+
     func uiReportingClosure(annotation: MKPointAnnotation, error: NSError?) -> Void {
         if error != nil {
-            println("PhotoAlbumViewController Error: \(error)")
-            return
+            UICommon.errorAlert("Flickr API Failure", message: "Could not fetch photos from Flickr\n\n[\(error!.localizedDescription)]", inViewController: self)
         }
     }
 
@@ -159,6 +149,7 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
         }
         for photo in photosToDelete {
             photo.photoImage = nil          // delete the disk file
+            photo.deleteComments(sharedContext)
             sharedContext.deleteObject(photo)
         }
         CoreDataStackManager.sharedInstance.saveContext()
@@ -187,7 +178,8 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
 
 
     func collectionView(collectionView: UICollectionView, cellForItemAtIndexPath indexPath: NSIndexPath) -> UICollectionViewCell {
-        let cell = collectionView.dequeueReusableCellWithReuseIdentifier(reuseIdentifier, forIndexPath: indexPath) as! PhotoCollectionViewCell
+        let cell = collectionView.dequeueReusableCellWithReuseIdentifier(REUSE_IDENTIFIER,
+            forIndexPath: indexPath) as! PhotoCollectionViewCell
         cell.parentViewController = self
 
         var photoImage = UIImage(named: "Placeholder")

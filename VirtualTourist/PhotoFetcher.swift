@@ -1,5 +1,5 @@
 //
-//  PhotoLoader.swift
+//  PhotoFetcher
 //  VirtualTourist
 //
 //  Created by Steven O'Toole on 5/10/15.
@@ -9,34 +9,31 @@
 import UIKit
 import CoreData
 
-class PhotoLoader {
+class PhotoFetcher {
 
-    static let NOTIFICATION_PHOTO_LOADED = "com.o2l.photoloaded"
+    static let NOTIFICATION_PHOTO_FETCHED = "com.o2l.photofetched"
 
     private let photo: Photo
     private let privateQueueContext: NSManagedObjectContext
-    private var currentSession: NSURLSession?
-    private var retryCount = 0
-    private let listLoader: PhotoListLoader
+    private let listFetcher: PhotoListFetcher
 
-    init(photo: Photo, privateQueueContext: NSManagedObjectContext, listLoader: PhotoListLoader) {
+    init(photo: Photo, privateQueueContext: NSManagedObjectContext, listFetcher: PhotoListFetcher) {
         self.privateQueueContext = privateQueueContext
         self.photo = photo
-        self.listLoader = listLoader
+        self.listFetcher = listFetcher
     }
 
-    func load(session: NSURLSession) {
-        self.currentSession = session
-        NetClient.sharedInstance.getOnePhotoImage(photo.urlString, session: session, completionHandler: loadingClosure)
+    func fetchPhotoFromFlickr(session: NSURLSession) {
+        NetClient.sharedInstance.getOneFlickrPhoto(photo.urlString, session: session,
+            completionHandler: loadingClosure)
     }
 
     func loadingClosure(data: NSData!, response: NSURLResponse!, error: NSError?) -> Void {
         var image: UIImage?
         if error != nil {
-            // sometimes I get a Resource Busy Error.
-            println("PhotoLoader closure error: \(error)")
+            // Sometimes I get a whole bunch of Resource Busy Errors (NSPOSIXErrorDomain Code=16)
+            // I don't want to annoy the user with a series of alerts, so show a failure image
             image = UIImage(named: "FailedImage")
-
         } else {
             image = UIImage(data: data)
         }
@@ -46,14 +43,14 @@ class PhotoLoader {
             var error: NSError? = nil
             self.privateQueueContext.save(&error)
             if error != nil {
-                println("PhotoLoader saving error=\(error)")
+                NSLog("PhotoLoader saving error \(error), \(error!.userInfo)")
                 return
             }
         })
-        listLoader.numPhotosToLoad--
+        listFetcher.numPhotosToFetch--
         dispatch_async(dispatch_get_main_queue(), {
             CoreDataStackManager.sharedInstance.saveContext()
-            NSNotificationCenter.defaultCenter().postNotificationName(PhotoLoader.NOTIFICATION_PHOTO_LOADED, object: nil)
+            NSNotificationCenter.defaultCenter().postNotificationName(PhotoFetcher.NOTIFICATION_PHOTO_FETCHED, object: nil)
         })
 
     }
