@@ -10,7 +10,7 @@ import CoreData
 import MapKit
 
 
-public typealias UIReportingClosure = (annotation: MKPointAnnotation, error: NSError?) -> Void
+public typealias UIReportingClosure = (error: NSError?) -> Void
 public typealias BatchPhotosFetchedClosure = () -> Void
 
 
@@ -80,7 +80,7 @@ class PhotoListFetcher: NSObject {
 
     func searchClosure(data: NSData!, response: NSURLResponse!, error: NSError?) -> Void {
         if error != nil {
-            if uiReportingClosure != nil { uiReportingClosure!(annotation: pinAnnotation, error: error) }
+            if uiReportingClosure != nil { uiReportingClosure!(error: error) }
             return
         }
 
@@ -98,7 +98,7 @@ class PhotoListFetcher: NSObject {
         dict[NSLocalizedDescriptionKey] = "Failed to find photo dictionary in JSON response"
         if parsingError != nil { dict[NSUnderlyingErrorKey] = parsingError }
         let reportError = NSError(domain: "com.o2l.error.json", code: 9999, userInfo: dict as [NSObject : AnyObject])
-        if uiReportingClosure != nil { uiReportingClosure!(annotation: pinAnnotation, error: reportError) }
+        if uiReportingClosure != nil { uiReportingClosure!(error: reportError) }
     }
 
 
@@ -127,7 +127,7 @@ class PhotoListFetcher: NSObject {
         let objectID = pinAnnotation.pinRef.objectID
         let privateQPin = privateQueueContext.existingObjectWithID(objectID, error: &error) as! Pin
         if error != nil {
-            if uiReportingClosure != nil { uiReportingClosure!(annotation: pinAnnotation, error: error) }
+            if uiReportingClosure != nil { uiReportingClosure!(error: error) }
             return
         }
         privateQPin.totalAvailablePhotos = self.totalPhotos
@@ -139,7 +139,7 @@ class PhotoListFetcher: NSObject {
         // save both the private context and the parent main context
         self.privateQueueContext.save(&error)
         if error != nil {
-            if uiReportingClosure != nil { uiReportingClosure!(annotation: pinAnnotation, error: error) }
+            if uiReportingClosure != nil { uiReportingClosure!(error: error) }
             return
         }
         dispatch_async(dispatch_get_main_queue(), {

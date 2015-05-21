@@ -132,7 +132,7 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
 
 
 
-    func uiReportingClosure(annotation: MKPointAnnotation, error: NSError?) -> Void {
+    func uiReportingClosure(error: NSError?) -> Void {
         if error != nil {
             UICommon.errorAlert("Flickr API Failure", message: "Could not fetch photos from Flickr\n\n[\(error!.localizedDescription)]", inViewController: self)
         }

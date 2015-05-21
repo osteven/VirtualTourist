@@ -30,7 +30,7 @@ class PhotoDetailViewController: UIViewController {
         photoImageView.image = photo.photoImage
         titleLabel.text = photo.title
         if photo.comments.count == 0 {
-            CommentListLoader(photo: photo).fetchFlickrCommentList(commentsLoadedClosure)
+            CommentListLoader(photo: photo).fetchFlickrCommentList(nil, batchCommentsLoadedClosure: commentsLoadedClosure)
         }
     }
 
