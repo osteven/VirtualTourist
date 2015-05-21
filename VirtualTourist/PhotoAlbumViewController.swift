@@ -75,11 +75,11 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
         super.viewDidLayoutSubviews()
 
         let layout : UICollectionViewFlowLayout = UICollectionViewFlowLayout()
-        layout.sectionInset = UIEdgeInsets(top: 1, left: 1, bottom: 1, right: 1)
-        layout.minimumLineSpacing = 1
-        layout.minimumInteritemSpacing = 1
+        layout.sectionInset = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+        layout.minimumLineSpacing = 0
+        layout.minimumInteritemSpacing = 0
 
-        let width = floor(self.collectionView.frame.size.width/3 - 1)
+        let width = floor(self.collectionView.frame.size.width/3)
         layout.itemSize = CGSize(width: width, height: width)
         collectionView.collectionViewLayout = layout
     }

@@ -130,7 +130,7 @@ class PhotoListFetcher: NSObject {
             if uiReportingClosure != nil { uiReportingClosure!(error: error) }
             return
         }
-        privateQPin.totalAvailablePhotos = self.totalPhotos
+        privateQPin.totalAvailablePhotos = Int32(self.totalPhotos)
 
         for aPhotoDictionary in photosArray {
             let photo = Photo(dictionary: aPhotoDictionary, pin: privateQPin, context: privateQueueContext)

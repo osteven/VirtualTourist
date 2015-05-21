@@ -29,7 +29,7 @@ class Pin: NSManagedObject, Printable {
     static let entityName = "Pin"
 
 
-    @NSManaged var totalAvailablePhotos: Int
+    @NSManaged var totalAvailablePhotos: Int32
     @NSManaged var latitude: Double
     @NSManaged var longitude: Double
     @NSManaged var locationName: String
