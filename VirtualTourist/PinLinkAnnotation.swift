@@ -9,7 +9,7 @@
 import MapKit
 
 
-class PinLinkAnnotation: MKPointAnnotation, Printable {
+class PinLinkAnnotation: MKPointAnnotation {
 
     let pinRef: Pin
     override var description: String { return "PinLinkAnnotation for pin:\(pinRef.description)" }

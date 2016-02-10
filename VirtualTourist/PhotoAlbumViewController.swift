@@ -33,7 +33,7 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
 
     // MARK: - Lifecycle
 
-    required init(coder aDecoder: NSCoder) {
+    required init?(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
         NSNotificationCenter.defaultCenter().addObserver(self,
             selector: "photoFetchedNotification:",
@@ -105,7 +105,7 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
     }
 
     private func configureCell(cell: PhotoCollectionViewCell, atIndexPath indexPath: NSIndexPath) {
-        if let index = find(selectedIndexes, indexPath) {
+        if let _ = selectedIndexes.indexOf(indexPath) {
             cell.photoImageView.alpha = 0.5
             cell.informationButton.hidden = false
         } else {
@@ -204,7 +204,7 @@ class PhotoAlbumViewController: UIViewController, UICollectionViewDelegate {
     func collectionView(collectionView: UICollectionView, didSelectItemAtIndexPath indexPath: NSIndexPath) {
 
         let cell = collectionView.cellForItemAtIndexPath(indexPath) as! PhotoCollectionViewCell
-        if let index = find(selectedIndexes, indexPath) {
+        if let index = selectedIndexes.indexOf(indexPath) {
             selectedIndexes.removeAtIndex(index)
         } else {
             selectedIndexes.append(indexPath)

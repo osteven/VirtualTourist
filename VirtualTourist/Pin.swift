@@ -16,7 +16,7 @@ import CoreData
 
 @objc(Pin)
 
-class Pin: NSManagedObject, Printable {
+class Pin: NSManagedObject {
 
     // MARK: - Properties
     struct Keys {

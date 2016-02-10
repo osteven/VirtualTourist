@@ -10,7 +10,7 @@ import CoreData
 
 @objc(Comment)
 
-class Comment: NSManagedObject, Printable {
+class Comment: NSManagedObject {
     /*
     Note: I tried for several days to get Photo to be in a one-to-many relationship with Comment.  I
     could not get it to work  I was able to save the comments and the related photo.  But anytime I 

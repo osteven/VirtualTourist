@@ -13,7 +13,7 @@ import CoreData
 
 @objc(Photo)
 
-class Photo: NSManagedObject, Printable {
+class Photo: NSManagedObject {
 
     // MARK: - Properties
     struct Keys {

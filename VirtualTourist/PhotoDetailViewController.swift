@@ -49,13 +49,13 @@ class PhotoDetailViewController: UIViewController {
 
 
     func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCellWithIdentifier("CommentCell") as? UITableViewCell
+        guard let cell = tableView.dequeueReusableCellWithIdentifier("CommentCell") else { fatalError("Cannot find CommentCell") }
         let comment = photo.comments[indexPath.row]
 
-        cell!.textLabel?.text = comment.authorName + " " + comment.getDateAsString()
-        cell!.detailTextLabel?.text = comment.content
+        cell.textLabel?.text = comment.authorName + " " + comment.getDateAsString()
+        cell.detailTextLabel?.text = comment.content
 
-        return cell!
+        return cell
     }
 
 

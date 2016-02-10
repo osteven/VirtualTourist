@@ -21,7 +21,8 @@ class MapViewController: UIViewController, MKMapViewDelegate {
 
     var filePath : String {
         let manager = NSFileManager.defaultManager()
-        let url = manager.URLsForDirectory(.DocumentDirectory, inDomains: .UserDomainMask).first as! NSURL
+        guard let url = manager.URLsForDirectory(.DocumentDirectory, inDomains: .UserDomainMask).first
+            else { fatalError("Failed to get DocumentDirectory") }
         return url.URLByAppendingPathComponent("mapRegionArchive").path!
     }
 
@@ -82,7 +83,7 @@ class MapViewController: UIViewController, MKMapViewDelegate {
     }
 
 
-    func mapView(mapView: MKMapView!, viewForAnnotation annotation: MKAnnotation!) -> MKAnnotationView! {
+    func mapView(mapView: MKMapView, viewForAnnotation annotation: MKAnnotation) -> MKAnnotationView? {
         let reuseId = "pin"
         var pinView = mapView.dequeueReusableAnnotationViewWithIdentifier(reuseId) as? MKPinAnnotationView
         if pinView == nil {
@@ -91,7 +92,7 @@ class MapViewController: UIViewController, MKMapViewDelegate {
             pinView!.pinColor = .Purple
             pinView!.animatesDrop = true
             pinView!.draggable = true
-            pinView!.rightCalloutAccessoryView = UIButton.buttonWithType(.DetailDisclosure) as! UIButton
+            pinView!.rightCalloutAccessoryView = UIButton(type: .DetailDisclosure)
         } else {
             pinView!.annotation = annotation
         }
@@ -100,7 +101,7 @@ class MapViewController: UIViewController, MKMapViewDelegate {
 
 
     // Handle pin dragged.  Like dropping a new pin, except the coordinate is already set.
-    func mapView(mapView: MKMapView!, annotationView view: MKAnnotationView!, didChangeDragState newState: MKAnnotationViewDragState, fromOldState oldState: MKAnnotationViewDragState) {
+    func mapView(mapView: MKMapView, annotationView view: MKAnnotationView, didChangeDragState newState: MKAnnotationViewDragState, fromOldState oldState: MKAnnotationViewDragState) {
         if newState == .Ending {
             let pinLinkAnnotation = view.annotation as! PinLinkAnnotation
             let pin = (view.annotation as! PinLinkAnnotation).pinRef
@@ -120,7 +121,7 @@ class MapViewController: UIViewController, MKMapViewDelegate {
     }
 
 
-    func mapView(mapView: MKMapView!, annotationView: MKAnnotationView, calloutAccessoryControlTapped control: UIControl) {
+    func mapView(mapView: MKMapView, annotationView: MKAnnotationView, calloutAccessoryControlTapped control: UIControl) {
         if control != annotationView.rightCalloutAccessoryView { return }
 
         let selectedPin = (annotationView.annotation as! PinLinkAnnotation).pinRef
@@ -139,7 +140,7 @@ class MapViewController: UIViewController, MKMapViewDelegate {
     }
 
 
-    func mapView(mapView: MKMapView!, regionDidChangeAnimated animated: Bool) {
+    func mapView(mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
         saveMapRegion()
     }
 
@@ -151,20 +152,19 @@ class MapViewController: UIViewController, MKMapViewDelegate {
             UIApplication.sharedApplication().networkActivityIndicatorVisible = false
             if error != nil  { /* do nothing, leave the latitude and logitude there */ return }
 
-            let pmArray = placemarks as? [CLPlacemark]
-            if pmArray == nil || pmArray!.count <= 0 { /* do nothing... */ return }
+            guard let pmArray = placemarks where pmArray.count > 0 else { /* do nothing... */ return  }
 
-            let placeMark = pmArray![0]
-            let formattedAddressLines = placeMark.addressDictionary["FormattedAddressLines"] as? NSArray
+            let placeMark = pmArray[0]
+            guard let formattedAddressLines = placeMark.addressDictionary?["FormattedAddressLines"] as? NSArray
+                else { /* do nothing... */ return  }
 
-            if let addressStr = formattedAddressLines?.componentsJoinedByString(" ") {
-                annotation.pinRef.locationName = addressStr
-                annotation.title = addressStr
-                CoreDataStackManager.sharedInstance.saveContext()
-            }
+            let addressStr = formattedAddressLines.componentsJoinedByString(" ")
+            annotation.pinRef.locationName = addressStr
+            annotation.title = addressStr
+            CoreDataStackManager.sharedInstance.saveContext()
         })
     }
-
+    
 
 
 
@@ -172,7 +172,9 @@ class MapViewController: UIViewController, MKMapViewDelegate {
 
     func uiReportingClosure(error: NSError?) -> Void {
         if error != nil {
-            UICommon.errorAlert("Flickr API Failure", message: "Could not fetch photos from Flickr\n\n[\(error!.localizedDescription)]", inViewController: self)
+            UICommon.errorAlert("Flickr API Failure",
+                message: "Could not fetch photos from Flickr\n\n[\(error!.localizedDescription)]",
+                inViewController: self)
         }
     }
 
@@ -187,7 +189,7 @@ class MapViewController: UIViewController, MKMapViewDelegate {
     }
 
     private func getSavedMapRegion() -> MKCoordinateRegion {
-        if let regionDictionary = NSKeyedUnarchiver.unarchiveObjectWithFile(filePath) as? [String : AnyObject] {
+        if let regionDictionary = NSKeyedUnarchiver.unarchiveObjectWithFile(filePath) as? [String: AnyObject] {
             let longitude = regionDictionary["longitude"] as! CLLocationDegrees
             let latitude = regionDictionary["latitude"] as! CLLocationDegrees
             let center = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
@@ -198,8 +200,10 @@ class MapViewController: UIViewController, MKMapViewDelegate {
 
             return MKCoordinateRegion(center: center, span: span)
         } else {
-            let center = CLLocationCoordinate2D(latitude: mapView.region.center.latitude, longitude: mapView.region.center.longitude)
-            let span = MKCoordinateSpan(latitudeDelta: mapView.region.span.latitudeDelta, longitudeDelta: mapView.region.span.longitudeDelta)
+            let center = CLLocationCoordinate2D(latitude: mapView.region.center.latitude,
+                longitude: mapView.region.center.longitude)
+            let span = MKCoordinateSpan(latitudeDelta: mapView.region.span.latitudeDelta,
+                longitudeDelta: mapView.region.span.longitudeDelta)
             return MKCoordinateRegion(center: center, span: span)
         }
     }
@@ -209,7 +213,13 @@ class MapViewController: UIViewController, MKMapViewDelegate {
         var error: NSError? = nil
         let fetchRequest = NSFetchRequest(entityName: "Pin")
 
-        let results = self.sharedContext.executeFetchRequest(fetchRequest, error: &error)
+        let results: [AnyObject]?
+        do {
+            results = try self.sharedContext.executeFetchRequest(fetchRequest)
+        } catch let error1 as NSError {
+            error = error1
+            results = nil
+        }
         if error != nil {
             UICommon.errorAlert("Database Failure", message: "Could not load the saved pins\n\n[\(error!.localizedDescription)]", inViewController: self)
             return

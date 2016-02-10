@@ -43,7 +43,7 @@ class CoreDataStackManager {
     
     private lazy var applicationDocumentsDirectory: NSURL = {
         let urls = NSFileManager.defaultManager().URLsForDirectory(.DocumentDirectory, inDomains: .UserDomainMask)
-        return urls[urls.count-1] as! NSURL
+        return urls[urls.count-1] 
         }()
     
     private lazy var managedObjectModel: NSManagedObjectModel = {
@@ -72,24 +72,26 @@ class CoreDataStackManager {
         var coordinator: NSPersistentStoreCoordinator? = NSPersistentStoreCoordinator(managedObjectModel: self.managedObjectModel)
         let url = self.applicationDocumentsDirectory.URLByAppendingPathComponent(SQLITE_FILE_NAME)
         
-        println("sqlite path: \(url.path!)")
+        print("sqlite path: \(url.path!)")
         
         var error: NSError? = nil
 
-        if coordinator!.addPersistentStoreWithType(NSSQLiteStoreType, configuration: nil, URL: url, options: nil, error: &error) == nil {
+        do {
+            try coordinator!.addPersistentStoreWithType(NSSQLiteStoreType, configuration: nil, URL: url, options: nil)
+        } catch let error as NSError {
             coordinator = nil
-            // Report any error we got.
-            let dict = NSMutableDictionary()
-            dict[NSLocalizedDescriptionKey] = "Failed to initialize the application's saved data"
-            dict[NSLocalizedFailureReasonErrorKey] = "There was an error creating or loading the application's saved data."
-            dict[NSUnderlyingErrorKey] = error
-            error = NSError(domain: "YOUR_ERROR_DOMAIN", code: 9999, userInfo: dict as [NSObject : AnyObject])
+            let dict: [NSObject: AnyObject] = [
+                NSLocalizedDescriptionKey: "Failed to initialize the application's saved data",
+                NSLocalizedFailureReasonErrorKey: "There was an error creating or loading the application's saved data.",
+                NSUnderlyingErrorKey: error]
+            let errorWrapper = NSError(domain: "com.o2l.error", code: 9999, userInfo: dict)
 
             // Left in for development.
-            NSLog("Unresolved error \(error), \(error!.userInfo)")
+            NSLog("Unresolved error \(error), \(errorWrapper.userInfo)")
             abort()
+        } catch {
+            fatalError()
         }
-        
         return coordinator
         }()
     
@@ -113,7 +115,10 @@ class CoreDataStackManager {
             if !context.hasChanges { return }
 
             var error: NSError? = nil
-            if !context.save(&error) {
+            do {
+                try context.save()
+            } catch let error1 as NSError {
+                error = error1
                 NSLog("Unresolved error \(error), \(error!.userInfo)")
                 abort()
             }

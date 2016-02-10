@@ -46,47 +46,53 @@ class CommentListLoader {
         }
     }
 
-    func searchClosure(data: NSData!, response: NSURLResponse!, error: NSError?) -> Void {
-        if error != nil { reportError(error); return }
+    func searchClosure(data: NSData?, response: NSURLResponse?, error: NSError?) -> Void {
+        if error != nil || data == nil { reportError(error); return }
 
-        var parsingError: NSError? = nil
-        let parsedResult = NSJSONSerialization.JSONObjectWithData(data, options: NSJSONReadingOptions.AllowFragments,
-            error: &parsingError) as! NSDictionary
-        if parsingError != nil { return }
-
-        if let commentsDictionary = parsedResult.valueForKey("comments") as? [String:AnyObject] {
-            if let commentArray = commentsDictionary["comment"] as? [[String: AnyObject]] {
-
-                var pqPhoto: Photo? = nil
-                self.privateQueueContext.performBlockAndWait({
-                    var error: NSError? = nil
-                    pqPhoto = self.privateQueueContext.existingObjectWithID(self.photo.objectID, error: &error) as? Photo
-                    if error != nil { self.reportError(error); return }
-                })
-                assert(pqPhoto != nil)
-
-                var addedComments = [Comment]()
-                for jsonComment in commentArray {
-                    self.privateQueueContext.performBlockAndWait({
-                        let comment = Comment(dictionary: jsonComment, photo: pqPhoto!, context: self.privateQueueContext)
-                        addedComments.append(comment)
-                    })
-                 }
-                // save both the private context and the parent main context
-                self.privateQueueContext.performBlockAndWait({
-                    var saveError: NSError? = nil
-                    self.privateQueueContext.save(&saveError)
-                    if saveError != nil { self.reportError(saveError); return }
-               })
-                dispatch_async(dispatch_get_main_queue(), {
-                    CoreDataStackManager.sharedInstance.saveContext()
-                    self.loadCommentDataFromDB(self.photo)
-                    if self.batchCommentsLoadedClosure != nil { self.batchCommentsLoadedClosure!() }
-                })
-            }
+        let parsedDict: NSDictionary?
+        do {
+            try parsedDict = NSJSONSerialization.JSONObjectWithData(data!, options: NSJSONReadingOptions.AllowFragments) as? NSDictionary
+        } catch let parseError as NSError {
+            reportError(parseError)
+            return
         }
+        guard let commentsDictionary = parsedDict?.valueForKey("comments") as? [String:AnyObject],
+            commentArray = commentsDictionary["comment"] as? [[String: AnyObject]] else { return }
+
+        var pqPhoto: Photo?
+        self.privateQueueContext.performBlockAndWait({
+            do {
+                pqPhoto = try self.privateQueueContext.existingObjectWithID(self.photo.objectID) as? Photo
+            } catch let error as NSError {
+                self.reportError(error)
+                return
+            }
+        })
+        assert(pqPhoto != nil)
+
+        var addedComments = [Comment]()
+        for jsonComment in commentArray {
+            self.privateQueueContext.performBlockAndWait({
+                let comment = Comment(dictionary: jsonComment, photo: pqPhoto!, context: self.privateQueueContext)
+                addedComments.append(comment)
+            })
+        }
+        // save both the private context and the parent main context
+        self.privateQueueContext.performBlockAndWait({
+            do {
+                try self.privateQueueContext.save()
+            } catch let error as NSError {
+                self.reportError(error)
+                return
+            }
+        })
+        dispatch_async(dispatch_get_main_queue(), {
+            CoreDataStackManager.sharedInstance.saveContext()
+            self.loadCommentDataFromDB(self.photo)
+            if self.batchCommentsLoadedClosure != nil { self.batchCommentsLoadedClosure!() }
+        })
     }
-    
+
     // MARK: - Utility
     private func reportError(error: NSError?) {
         if error == nil { return }
@@ -100,14 +106,19 @@ class CommentListLoader {
 
     // MARK: - Database Fetch
     func loadCommentDataFromDB(photo: Photo) {
-        var error: NSError? = nil
         let fetchRequest = NSFetchRequest(entityName: "Comment")
         fetchRequest.sortDescriptors = [NSSortDescriptor(key: "dateCreated", ascending: false)]
         fetchRequest.predicate = NSPredicate(format: "photoID == %@", photo.id);
-        let results = self.sharedContext.executeFetchRequest(fetchRequest, error: &error)
-        if error != nil { reportError(error); return }
-        for comment in results! {
-            photo.comments.append(comment as! Comment)
+        let results: [AnyObject]
+        do {
+            results = try self.sharedContext.executeFetchRequest(fetchRequest)
+        } catch let error as NSError {
+            self.reportError(error)
+            return
+        }
+        guard let comments = results as? [Comment] else { return }
+        for comment in comments {
+            photo.comments.append(comment)
         }
     }
 

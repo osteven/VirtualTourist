@@ -78,29 +78,30 @@ class PhotoListFetcher: NSObject {
     }
 
 
-    func searchClosure(data: NSData!, response: NSURLResponse!, error: NSError?) -> Void {
-        if error != nil {
+    func searchClosure(data: NSData?, response: NSURLResponse?, error: NSError?) -> Void {
+        if error != nil || data == nil {
             if uiReportingClosure != nil { uiReportingClosure!(error: error) }
             return
         }
 
-        var parsingError: NSError? = nil
-        let parsedResult = NSJSONSerialization.JSONObjectWithData(data, options: NSJSONReadingOptions.AllowFragments,
-            error: &parsingError) as! NSDictionary
-        if parsingError == nil {
-            if let photosDictionary = parsedResult.valueForKey("photos") as? [String:AnyObject] {
-                // this closure runs in a background thread, so I have to access the data on a private queue
-                self.privateQueueContext.performBlock( { self.gotFlickrResponse(photosDictionary) })
-                return
-            }
-        }
-        let dict = NSMutableDictionary()
-        dict[NSLocalizedDescriptionKey] = "Failed to find photo dictionary in JSON response"
-        if parsingError != nil { dict[NSUnderlyingErrorKey] = parsingError }
-        let reportError = NSError(domain: "com.o2l.error.json", code: 9999, userInfo: dict as [NSObject : AnyObject])
-        if uiReportingClosure != nil { uiReportingClosure!(error: reportError) }
-    }
 
+        let parsedDict: NSDictionary?
+        do {
+            try parsedDict = NSJSONSerialization.JSONObjectWithData(data!, options: NSJSONReadingOptions.AllowFragments) as? NSDictionary
+        } catch let parseError as NSError {
+            let dict: [NSObject: AnyObject] = [
+                NSLocalizedDescriptionKey: "Failed to find photo dictionary in JSON response",
+                NSUnderlyingErrorKey: parseError]
+            let reportError = NSError(domain: "com.o2l.error.json", code: 9999, userInfo: dict)
+            if uiReportingClosure != nil { uiReportingClosure!(error: reportError) }
+            return
+        }
+
+        guard let photosDictionary = parsedDict?.valueForKey("photos") as? [String:AnyObject] else { /* Not possible? */ return }
+        // this closure runs in a background thread, so I have to access the data on a private queue
+        self.privateQueueContext.performBlock( { self.gotFlickrResponse(photosDictionary) })
+    }
+    
 
     private func gotFlickrResponse(photosDictionary: [String:AnyObject]) {
         if let totalPages = photosDictionary["pages"] as? Int {
@@ -125,7 +126,7 @@ class PhotoListFetcher: NSObject {
 
         var error: NSError? = nil
         let objectID = pinAnnotation.pinRef.objectID
-        let privateQPin = privateQueueContext.existingObjectWithID(objectID, error: &error) as! Pin
+        let privateQPin = (try! privateQueueContext.existingObjectWithID(objectID)) as! Pin
         if error != nil {
             if uiReportingClosure != nil { uiReportingClosure!(error: error) }
             return
@@ -133,11 +134,15 @@ class PhotoListFetcher: NSObject {
         privateQPin.totalAvailablePhotos = Int32(self.totalPhotos)
 
         for aPhotoDictionary in photosArray {
-            let photo = Photo(dictionary: aPhotoDictionary, pin: privateQPin, context: privateQueueContext)
+            let _ = Photo(dictionary: aPhotoDictionary, pin: privateQPin, context: privateQueueContext)
         }
 
-        // save both the private context and the parent main context
-        self.privateQueueContext.save(&error)
+        do {
+            // save both the private context and the parent main context
+            try self.privateQueueContext.save()
+        } catch let error1 as NSError {
+            error = error1
+        }
         if error != nil {
             if uiReportingClosure != nil { uiReportingClosure!(error: error) }
             return

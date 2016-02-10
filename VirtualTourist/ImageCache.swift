@@ -21,13 +21,10 @@ class ImageCache {
     func imageWithIdentifier(identifier: String?) -> UIImage? {
         
         // If the identifier is nil, or empty, return nil
-        if identifier == nil || identifier! == "" {
-            return nil
-        }
+        if identifier == nil || identifier! == "" { return nil }
         
         let path = pathForIdentifier(identifier!)
-        var data: NSData?
-        
+
         // First try the memory cache
         if let image = inMemoryCache.objectForKey(path) as? UIImage {
             return image
@@ -49,7 +46,10 @@ class ImageCache {
         // If the image is nil, remove images from the cache
         if image == nil {
             inMemoryCache.removeObjectForKey(path)
-            NSFileManager.defaultManager().removeItemAtPath(path, error: nil)
+            do {
+                try NSFileManager.defaultManager().removeItemAtPath(path)
+            } catch _ {
+            }
             return nil
         }
         
@@ -57,7 +57,7 @@ class ImageCache {
         inMemoryCache.setObject(image!, forKey: path)
         
         // And in documents directory
-        let data = UIImagePNGRepresentation(image!)
+        guard let data = UIImagePNGRepresentation(image!) else { fatalError("failed UIImagePNGRepresentation") }
         data.writeToFile(path, atomically: true)
         return path
     }
@@ -65,14 +65,19 @@ class ImageCache {
 
     func createStorageDirectory(uniquePinID: String) {
         let path = pathForIdentifier(uniquePinID)
-        NSFileManager.defaultManager().createDirectoryAtPath(path, withIntermediateDirectories: false, attributes: nil, error: nil)
+        do {
+            try NSFileManager.defaultManager().createDirectoryAtPath(path, withIntermediateDirectories: false, attributes: nil)
+        } catch _ {
+        }
     }
 
 
     // MARK: - Helper
     
     func pathForIdentifier(identifier: String) -> String {
-        let documentsDirectoryURL: NSURL = NSFileManager.defaultManager().URLsForDirectory(.DocumentDirectory, inDomains: .UserDomainMask).first as! NSURL
+        guard let documentsDirectoryURL = NSFileManager.defaultManager().URLsForDirectory(.DocumentDirectory,
+            inDomains: .UserDomainMask).first
+            else { fatalError("Failed to get DocumentDirectory") }
         let fullURL = documentsDirectoryURL.URLByAppendingPathComponent(identifier)
         
         return fullURL.path!

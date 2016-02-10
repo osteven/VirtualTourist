@@ -28,20 +28,26 @@ class PhotoFetcher {
             completionHandler: loadingClosure)
     }
 
-    func loadingClosure(data: NSData!, response: NSURLResponse!, error: NSError?) -> Void {
+    func loadingClosure(data: NSData?, response: NSURLResponse?, error: NSError?) -> Void {
         var image: UIImage?
-        if error != nil {
+        if error != nil || data == nil {
             // Sometimes I get a whole bunch of Resource Busy Errors (NSPOSIXErrorDomain Code=16)
             // I don't want to annoy the user with a series of alerts, so show a failure image
             image = UIImage(named: "FailedImage")
         } else {
-            image = UIImage(data: data)
+            image = UIImage(data: data!)
         }
 
         privateQueueContext.performBlockAndWait({
             self.photo.photoImage = image
             var error: NSError? = nil
-            self.privateQueueContext.save(&error)
+            do {
+                try self.privateQueueContext.save()
+            } catch let error1 as NSError {
+                error = error1
+            } catch {
+                fatalError()
+            }
             if error != nil {
                 NSLog("PhotoLoader saving error \(error), \(error!.userInfo)")
                 return
